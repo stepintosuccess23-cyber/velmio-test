@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script>try{if(localStorage.getItem('vm_theme')==='light')document.documentElement.setAttribute('data-theme','light')}catch(e){}</script>
+<script src="../assets/js/i18n.js"></script>
+<title>Dashboard | Velmio</title>
+<meta name="description" content="Velmio is building an easier way to turn your business photos into promo videos for Instagram, TikTok, and Facebook. Sign up and make your first video.">
+<meta name="theme-color" content="#101426">
+<meta name="robots" content="noindex">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Velmio">
+<meta property="og:title" content="Velmio | Your Photos. Beautiful Videos.">
+<meta property="og:description" content="Velmio is building an easier way to turn your business photos into promo videos for Instagram, TikTok, and Facebook. Sign up and make your first video.">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="icon" href="../favicon-48.png" sizes="48x48" type="image/png">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="preload" href="../assets/fonts/sora.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../assets/fonts/dm-sans.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../assets/css/style.css">
+<script>try{if(localStorage.getItem('vm_theme')!=='dark')document.documentElement.setAttribute('data-theme','light')}catch(e){document.documentElement.setAttribute('data-theme','light')}</script>
+<link rel="stylesheet" href="../assets/css/ui.css">
+<link rel="stylesheet" href="../assets/css/dash.css">
+<script>if(!matchMedia('(prefers-reduced-motion: reduce)').matches&&'IntersectionObserver' in window)document.documentElement.classList.add('motion');</script>
+<script defer src="../assets/js/config.js"></script>
+<script defer src="../assets/js/main.js"></script>
+<script defer src="../assets/js/chat.js"></script>
+</head>
+<body class="page-app vm-ui">
+<a class="skip-link" href="#main">Skip to content</a>
+
+
+
+<main id="main">
+
+<div class="shell" id="shell" data-page="dashboard" data-signup="../signup/" data-root="../">
+  <aside class="side" id="side" aria-label="Main">
+    <a class="side-brand" href="../dashboard/" aria-label="Velmio home">
+<span class="logo">
+  <svg class="logo-mark" viewBox="0 0 40 40" width="30" height="30" aria-hidden="true"><defs><linearGradient id="vm-logo-side" x1="6" y1="6" x2="34" y2="36" gradientUnits="userSpaceOnUse"><stop style="stop-color:var(--logo-a)"/><stop offset=".5" style="stop-color:var(--logo-b)"/><stop offset="1" style="stop-color:var(--logo-c)"/></linearGradient></defs><path d="M7 9.5 20 33 33 9.5" fill="none" stroke="url(#vm-logo-side)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M15.2 10.2h9.6L20 19.6z" fill="url(#vm-logo-side)" stroke="url(#vm-logo-side)" stroke-width="2.2" stroke-linejoin="round"/></svg>
+  <span class="logo-word">velmio<em>.</em></span>
+</span>
+</a>
+    <nav>
+      <a class="side-link" data-nav="dashboard" href="../dashboard/"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg><span class="label">Overview</span></a>
+      <a class="side-link" data-nav="videos" href="../videos/"><svg class="ic" aria-hidden="true"><use href="#i-film"/></svg><span class="label">My Videos</span></a>
+      <a class="side-link" href="../app/"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg><span class="label">Create New</span></a>
+      <a class="side-link" data-nav="projects" href="../projects/"><svg class="ic" aria-hidden="true"><use href="#i-folder"/></svg><span class="label">Projects</span></a>
+      <a class="side-link" data-nav="history" href="../history/"><svg class="ic" aria-hidden="true"><use href="#i-clock"/></svg><span class="label">History</span></a>
+      <a class="side-link" data-nav="brand" href="../brand-kit/"><svg class="ic" aria-hidden="true"><use href="#i-palette"/></svg><span class="label">Brand Kit</span></a>
+      <a class="side-link" data-nav="settings" href="../settings/"><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg><span class="label">Settings</span></a>
+      <a class="side-link" href="../contact/"><svg class="ic" aria-hidden="true"><use href="#i-help"/></svg><span class="label">Help &amp; Support</span></a>
+    </nav>
+    <div class="side-bottom">
+      <a class="side-link" href="../settings/#account"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg><span class="label">Account</span></a>
+      <button class="side-link" type="button" data-theme-toggle><svg class="ic" aria-hidden="true"><use href="#i-moon"/></svg><span class="label">Appearance</span></button>
+      <button class="side-link" type="button" data-logout><svg class="ic" aria-hidden="true"><use href="#i-logout"/></svg><span class="label">Log out</span></button>
+    </div>
+  </aside>
+  <div class="shell-scrim" id="shell-scrim" hidden></div>
+  <div class="shell-main">
+    <header class="topbar">
+      <button class="icon-btn-plain topbar-burger" type="button" id="side-toggle" aria-expanded="false" aria-controls="side" aria-label="Open menu"><svg class="ic" aria-hidden="true"><use href="#i-list"/></svg></button>
+      <div class="topbar-end">
+        
+<button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch to light mode">
+  <svg class="i-sun" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6"/></svg>
+  <svg class="i-moon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5a8.5 8.5 0 1 0 10.7 10.7z"/></svg>
+</button>
+
+        
+<div class="acct" data-account>
+  <button class="acct-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu" data-account-btn><span class="avatar" data-avatar></span></button>
+  <div class="menu" role="menu" data-account-menu hidden>
+    <div class="acct-id"><span class="avatar" data-avatar></span><div><strong data-account-name translate="no"></strong><span data-account-email translate="no"></span></div></div>
+    <hr>
+    <a role="menuitem" href="../dashboard/"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg><span>My Dashboard</span></a>
+    <a role="menuitem" href="../videos/"><svg class="ic" aria-hidden="true"><use href="#i-film"/></svg><span>My Videos</span></a>
+    <a role="menuitem" href="../projects/"><svg class="ic" aria-hidden="true"><use href="#i-folder"/></svg><span>My Projects</span></a>
+    <a role="menuitem" href="../settings/"><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg><span>Account Settings</span></a>
+    <a role="menuitem" href="../settings/#billing"><svg class="ic" aria-hidden="true"><use href="#i-card"/></svg><span>Billing &amp; Plan</span></a>
+    <a role="menuitem" href="../contact/"><svg class="ic" aria-hidden="true"><use href="#i-help"/></svg><span>Help &amp; Support</span></a>
+    <hr>
+    <button role="menuitem" type="button" data-theme-toggle><svg class="ic" aria-hidden="true"><use href="#i-moon"/></svg><span>Appearance</span></button>
+    <button role="menuitem" type="button" data-logout><svg class="ic" aria-hidden="true"><use href="#i-logout"/></svg><span>Log out</span></button>
+  </div>
+</div>
+
+      </div>
+    </header>
+    <div class="page">
+      
+<header class="page-head">
+  <div><h1>Welcome back.</h1><p>Your creative workspace is ready.</p></div>
+  <a class="ui-btn primary" href="../app/"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg><span>Create new video</span></a>
+</header>
+<section class="stats" aria-label="Overview">
+  <div class="stat"><span>Videos Created</span><strong id="stat-videos">–</strong><small>Total generated videos</small></div>
+  <div class="stat"><span>Projects</span><strong id="stat-projects">–</strong><small>Number of saved projects</small></div>
+  <div class="stat"><span>Ready to Download</span><strong id="stat-ready">–</strong><small>Completed videos</small></div>
+</section>
+<section>
+  <div class="sec-head"><h2>Recent videos</h2><a href="../videos/">View all</a></div>
+  <div id="video-area"></div>
+</section>
+
+    </div>
+  </div>
+</div>
+
+</main>
+
+
+
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="1.500"/><rect x="13" y="4" width="7" height="7" rx="1.500"/><rect x="4" y="13" width="7" height="7" rx="1.500"/><rect x="13" y="13" width="7" height="7" rx="1.500"/></symbol>
+<symbol id="i-film" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.500" y="5" width="17" height="14" rx="2.500"/><path d="m10 9 5 3-5 3z"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.500 7.500A2 2 0 0 1 5.500 5.500h3.800l2 2.200h7.200a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.500"/><path d="M12 7.500V12l3 2"/></symbol>
+<symbol id="i-palette" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.500a8.500 8.500 0 0 0 0 17c1.300 0 2-.8 2-1.800 0-1.300-1-1.700-1-2.900 0-1 .8-1.800 1.900-1.800h2.100a3 3 0 0 0 3-3c0-4.200-3.500-7.500-8-7.500z"/><circle cx="8" cy="11" r=".9" fill="currentColor"/><circle cx="11" cy="7.500" r=".9" fill="currentColor"/><circle cx="15.500" cy="8.500" r=".9" fill="currentColor"/></symbol>
+<symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3.500v2.300M12 18.200v2.300M3.500 12h2.300M18.200 12h2.300M6 6l1.600 1.600M16.400 16.400 18 18M18 6l-1.600 1.600M7.600 16.400 6 18"/></symbol>
+<symbol id="i-help" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.500"/><path d="M9.700 9.500a2.400 2.400 0 0 1 4.600.8c0 1.600-2.300 2-2.300 3.400"/><circle cx="12" cy="16.800" r=".6" fill="currentColor"/></symbol>
+<symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.500" r="4"/><path d="M4.500 20a7.500 7.500 0 0 1 15 0"/></symbol>
+<symbol id="i-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.500" y="5.500" width="17" height="13" rx="2.500"/><path d="M3.500 10h17"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.500 14.200A8.500 8.500 0 0 1 9.800 3.500a8.500 8.500 0 1 0 10.700 10.700z"/></symbol>
+<symbol id="i-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4.500H6a1.500 1.500 0 0 0-1.500 1.500v12A1.500 1.500 0 0 0 6 19.500h4M15.500 8l4 4-4 4M19.500 12H10"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.500"/><path d="m20 20-4.200-4.200"/></symbol>
+<symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 7h14M5 12h14M5 17h14"/></symbol>
+<symbol id="i-dots" viewBox="0 0 24 24" fill="currentColor"><circle cx="5.500" cy="12" r="1.700"/><circle cx="12" cy="12" r="1.700"/><circle cx="18.500" cy="12" r="1.700"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></symbol>
+<symbol id="i-type" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7V5h14v2M12 5v14M9.500 19h5"/></symbol>
+<symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3.500" width="6" height="11" rx="3"/><path d="M5.500 11.500a6.500 6.500 0 0 0 13 0M12 18v2.500"/></symbol>
+<symbol id="i-lines" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></symbol>
+<symbol id="i-waves" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8c2.200 0 2.200 2 4.500 2S9.800 8 12 8s2.200 2 4.500 2S18.800 8 21 8M3 15c2.200 0 2.200 2 4.500 2s2.300-2 4.500-2 2.200 2 4.500 2 2.300-2 4.500-2"/></symbol>
+<symbol id="i-msg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.500 11.500a8 8 0 0 1-11.700 7.100L4 20l1.400-4.800a8 8 0 1 1 15.100-3.700z"/></symbol>
+<symbol id="i-handshake" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8.500 3-2 4 1.500 2-1 3.500-.5 5.500 2.500M3 8.500V15l2 1 5.500 4 1.500-.5 5-4 4-1.500V8.500M12 7l-3.500 3.500a1.400 1.400 0 0 0 2 2L13 10.500l4 4"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+<symbol id="i-spark-line" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4.500 13 10l5.500 2-5.500 2-2 5.500L9 14l-5.500-2L9 10z"/></symbol>
+<symbol id="i-music" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.500 17.500V5.500l10-2v12"/><circle cx="7" cy="17.500" r="2.500"/><circle cx="17" cy="15.500" r="2.500"/></symbol>
+<symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7.500 10.500 12 15l4.500-4.500M4.500 19.500h15"/></symbol>
+<symbol id="i-pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 20 1-4.500L16 4.500a2 2 0 0 1 3 0l.5.500a2 2 0 0 1 0 3L8.500 19z"/></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8.500" y="8.500" width="11.500" height="11.500" rx="2"/><path d="M15.500 8.500V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7.500a2 2 0 0 0 2 2h2.500"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.500 7h15M9.500 7V4.500h5V7M6.500 7l1 12.500h9l1-12.500"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+<symbol id="i-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.500" y="4.500" width="17" height="15" rx="2.500"/><circle cx="9" cy="10" r="1.500"/><path d="m4 17 5-4 3.500 2.500L16 12l4.500 4"/></symbol>
+<symbol id="i-volume" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.500v5h3.500L12 18.500v-13L7.500 9.500z"/><path d="M15.500 9a4 4 0 0 1 0 6M18 6.500a7.500 7.500 0 0 1 0 11"/></symbol>
+<symbol id="art-frames" viewBox="0 0 360 150" fill="none"><rect x="96" y="8" width="150" height="96" rx="12" fill="var(--soft)"/><rect x="60" y="20" width="150" height="96" rx="12" fill="var(--purple)" opacity=".35"/><rect x="24" y="32" width="150" height="96" rx="12" fill="var(--brand)"/><path d="m88 66 26 14-26 14z" fill="#fff"/><rect x="196" y="122" width="52" height="16" rx="5" fill="var(--soft)"/><rect x="254" y="122" width="34" height="16" rx="5" fill="var(--purple)" opacity=".55"/><rect x="294" y="122" width="44" height="16" rx="5" fill="var(--soft)"/><rect x="274" y="60" width="62" height="10" rx="5" fill="var(--soft)"/><rect x="274" y="80" width="40" height="10" rx="5" fill="var(--purple)" opacity=".45"/></symbol>
+</defs></svg>
+
+<script defer src="../assets/js/library.js"></script>
+<script defer src="../assets/js/account.js"></script>
+<script defer src="../assets/js/dashboard.js"></script>
+
+<div class="chat" id="chat" hidden>
+  <button class="chat-launch" type="button" id="chat-launch" aria-expanded="false" aria-controls="chat-panel" aria-label="Open chat assistant">
+    <svg class="i-spark" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M11 3.5 13 9l5.500 2-5.500 2-2 5.500L9 13l-5.500-2L9 9zM18.500 2l.9 2.600L22 5.500l-2.600.9-.9 2.600-.9-2.600L15 5.500l2.600-.9z"/></svg>
+    <span>Ask Velmio</span>
+  </button>
+  <section class="chat-panel" id="chat-panel" role="dialog" aria-label="Velmio assistant" hidden>
+    <header class="chat-head">
+      <p><strong>Velmio assistant</strong> <span class="tag">AI</span></p>
+      <button class="chat-close" type="button" id="chat-close" aria-label="Close chat">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </header>
+    <div class="chat-log" id="chat-log" role="log" aria-live="polite" tabindex="0">
+      <div class="chat-msg chat-bot">Hi, I'm Velmio's AI assistant. Ask me about pricing, how the studio works, or your account.</div>
+    </div>
+    <div class="chat-starters" id="chat-starters">
+      <button type="button">What does it cost?</button>
+      <button type="button">How does it work?</button>
+      <button type="button">I need to talk to a person</button>
+    </div>
+    <form class="chat-form" id="chat-form">
+      <textarea id="chat-input" rows="1" maxlength="1000" dir="auto" placeholder="Type your question" aria-label="Type your question"></textarea>
+      <button class="chat-send" type="submit" id="chat-send" aria-label="Send">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
+      </button>
+    </form>
+    <p class="chat-fine"><span>AI can make mistakes. Don't share passwords or payment details.</span> <a href="../privacy/#chat-assistant">How chats are handled</a></p>
+  </section>
+  <div id="chat-pages" hidden>
+    <a class="chat-link" data-page="get_started" href="../signup/">Get Started</a>
+    <a class="chat-link" data-page="log_in" href="../signup/?mode=login">Log in</a>
+    <a class="chat-link" data-page="pricing" href="../#pricing">Pricing</a>
+    <a class="chat-link" data-page="examples" href="../#examples">Examples</a>
+    <a class="chat-link" data-page="faq" href="../#faq">FAQ</a>
+    <a class="chat-link" data-page="contact" href="../contact/">Contact</a>
+    <a class="chat-link" data-page="privacy" href="../privacy/">Privacy Policy</a>
+    <a class="chat-link" data-page="terms" href="../terms/">Terms of Service</a>
+  </div>
+</div>
+
+<section class="consent" id="cookie-banner" aria-label="Cookie choices" hidden>
+  <p>We'd like to use cookies to measure visits and ads. See our <a href="../privacy/">Privacy Policy</a>.</p>
+  <div class="consent-actions">
+    <button class="btn btn-small btn-primary" type="button" data-consent="granted">Accept</button>
+    <button class="btn btn-small btn-glass" type="button" data-consent="denied">Decline</button>
+  </div>
+</section>
+</body>
+</html>
