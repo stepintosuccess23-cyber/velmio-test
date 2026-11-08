@@ -55,6 +55,10 @@
 
     <div class="auth-center">
       <div class="auth-card">
+        <div translate="no" style="margin-bottom:18px;padding:12px 14px;border:1px dashed var(--lavender);border-radius:12px;">
+          <p style="margin-bottom:8px;font-size:.86rem;color:var(--muted);"><strong style="color:var(--ivory);">Test site only.</strong> Skips sign-up so you can try the dashboard and Studio. Nothing is sent anywhere.</p>
+          <button class="btn btn-primary btn-block" type="button" id="tester-enter" style="min-height:44px;">Enter as tester</button>
+        </div>
         <h1 id="auth-title"><span data-for="signup">Create your account</span><span data-for="login" hidden>Welcome back</span></h1>
         <p class="auth-sub"><span data-for="signup">Your first video starts with your photos.</span><span data-for="login" hidden>Log in to open your video studio.</span></p>
 
@@ -181,5 +185,6 @@
     <button class="btn btn-small btn-glass" type="button" data-consent="denied">Decline</button>
   </div>
 </section>
+<script>document.getElementById('tester-enter').addEventListener('click',function(){localStorage.setItem('vm_user',JSON.stringify({email:'tester@velmio.test',name:'Tester',plan:'',uid:'tester'}));location.href='../dashboard/';});</script>
 </body>
 </html>
