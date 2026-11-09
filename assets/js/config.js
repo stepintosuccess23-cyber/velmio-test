@@ -1,7 +1,7 @@
 /* Site settings. Edit these values after upload; no build is needed. */
 window.SITE_CONFIG = {
   // Web app URL from your Google Apps Script deployment (ends in /exec).
-  formEndpoint: "",
+  formEndpoint: "https://script.google.com/macros/s/AKfycby1qi5w76VQ8cKeOBP8IEmyIeYbqKiNb2XDKqm_SRaxzveVpOHptRDnOLhJWetQ6AA/exec",
 
   // Tracking IDs. Leave blank to turn a tool off.
   // If gtmId is set, add Meta and GA4 inside Tag Manager and leave those two
@@ -17,10 +17,6 @@ window.SITE_CONFIG = {
   // Firebase designs this value to be public. It only identifies your project.
   // Your private keys belong in the Apps Script, never in this file.
   firebaseApiKey: "",
-
-  // Web client ID from Firebase (Authentication > Google).
-  // The "Continue with Google" button appears only when set.
-  googleClientId: "",
 
   // Set to true after adding ANTHROPIC_API_KEY to the Apps Script.
   chatEnabled: false,

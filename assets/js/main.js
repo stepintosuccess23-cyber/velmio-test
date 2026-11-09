@@ -24,10 +24,10 @@
   var analyticsDenied = false;
   var queue = [];
   var firedOnce = {};
-  var META_STANDARD = { PageView: 1, ViewContent: 1, Lead: 1 };
+  var META_STANDARD = { PageView: 1, ViewContent: 1, Lead: 1, InitiateCheckout: 1, Purchase: 1 };
   var GA4_NAMES = {
     ViewContent: 'view_content', LeadFormStart: 'lead_form_start', Lead: 'generate_lead',
-    CTA_Click: 'cta_click', Demo_Play: 'demo_play', Pricing_View: 'pricing_view',
+    InitiateCheckout: 'begin_checkout', Purchase: 'purchase', CTA_Click: 'cta_click', Demo_Play: 'demo_play', Pricing_View: 'pricing_view',
     Studio_Open: 'studio_open', Generate_Start: 'generate_start', Video_Ready: 'video_ready', Video_Download: 'video_download', Script_Generated: 'script_generated', Contact_Submit: 'contact_submit', Chat_Open: 'chat_open', Chat_Message: 'chat_message'
   };
 
@@ -227,6 +227,13 @@
       raf = window.requestAnimationFrame(tick);
     }
 
+    function setMuted(on) {
+      var button = $('[data-player-mute]', el);
+      video.muted = on;
+      button.setAttribute('aria-pressed', String(!on));
+      button.setAttribute('aria-label', on ? 'Turn sound on' : 'Turn sound off');
+    }
+
     function setState(playing) {
       api.playing = playing;
       el.classList.toggle('is-playing', playing);
@@ -263,18 +270,17 @@
         timeEl.textContent = formatTime(video.currentTime * 1000);
       });
       var mute = $('[data-player-mute]', el);
-      if (mute) {
-        mute.addEventListener('click', function () {
-          video.muted = !video.muted;
-          mute.setAttribute('aria-pressed', String(!video.muted));
-          mute.setAttribute('aria-label', video.muted ? 'Turn sound on' : 'Turn sound off');
-        });
-      }
+      if (mute) mute.addEventListener('click', function () { setMuted(!video.muted); });
     }
 
     toggle.addEventListener('click', function () {
       if (api.playing) { api.userPaused = true; pause(); }
-      else { api.userPaused = false; play(); }
+      else {
+        api.userPaused = false;
+        // Someone who presses play on an example wants to hear it.
+        if (video && el.getAttribute('data-autoplay') !== 'true') setMuted(false);
+        play();
+      }
     });
 
     var auto = el.getAttribute('data-autoplay') === 'true' && !reducedMotion;
@@ -321,11 +327,12 @@
     var hero = $('#hero-cta');
     var lead = $('.final');
     if (!bar || !hero || !lead || !('IntersectionObserver' in window)) return;
-    var heroVisible = true, leadVisible = false;
+    var heroVisible = true, leadVisible = false, orderVisible = false;
     updateSticky = function () {
       var banner = $('#cookie-banner');
-      bar.hidden = heroVisible || leadVisible || (banner && !banner.hidden);
+      bar.hidden = heroVisible || leadVisible || orderVisible || (banner && !banner.hidden);
     };
+    new IntersectionObserver(function (e) { orderVisible = e[e.length - 1].isIntersecting; updateSticky(); }).observe($('#start'));
     new IntersectionObserver(function (e) { heroVisible = e[e.length - 1].isIntersecting; updateSticky(); }).observe(hero);
     new IntersectionObserver(function (e) { leadVisible = e[e.length - 1].isIntersecting; updateSticky(); }).observe(lead);
   }
@@ -373,283 +380,340 @@
     return current;
   }
 
-  /* ---------- Sign up / log in ---------- */
+  /* ---------- Order: details and files, package, payment ---------- */
   var pageLoadedAt = Date.now();
-  var AUTH_URL = 'https://identitytoolkit.googleapis.com/v1/accounts:';
 
-  function initSignup(attribution) {
-    var form = $('#signup-form');
+  function initOrderForm(attribution) {
+    var form = $('#order-form');
     if (!form) return;
-    if (store.get('vm_user')) { window.location.replace(form.getAttribute('data-next')); return; }
+    var MAX_FILE = 10 * 1024 * 1024;
+    var PRICES = { single: 120, double: 199 };
+    var progress = $('#ob-progress'), review = $('#ob-review'), payment = $('#ob-payment'), done = $('#ob-done');
+    var submit = $('#ob-submit'), formError = $('#ob-error'), payButton = $('#ob-pay'), payError = $('#ob-pay-error');
+    var label = submit.textContent, payLabel = payButton.textContent;
+    var order = null, busy = false, analysis = null, needDetails = false;
+    var EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/svg+xml': 'svg' };
+    var uploads = [
+      { id: 'o-logo', base: 'logo', max: 1 },
+      { id: 'o-photos', base: 'business', max: 6 },
+      { id: 'o-products', base: 'product', max: 6 }
+    ];
+    var rules = [
+      { id: 'o-name', test: function (v) { return v.length >= 2; }, msg: 'Enter your full name.' },
+      { id: 'o-business', test: function (v) { return v.length >= 2; }, msg: 'Enter your business name.' },
+      { id: 'o-website', test: function (v) { return /^(https?:\/\/)?[^\s.]+\.[^\s]{2,}$/i.test(v); }, msg: 'Enter your website address, like yourbusiness.com.' },
+      { id: 'o-category', test: function (v) { return v.length > 0; }, msg: 'Choose a business category.' },
+      { id: 'o-email', test: function (v) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v); }, msg: 'Enter a valid email address, like you@business.com.' },
+      { id: 'o-phone', test: function (v) { return /^\+?[\d\s().-]{7,24}$/.test(v); }, msg: 'Enter a phone or WhatsApp number.' }
+    ];
 
-    var apiKey = (cfg.firebaseApiKey || '').trim();
-    var email = $('#email');
-    var password = $('#password');
-    var submit = $('#auth-submit');
-    var formError = $('#auth-error');
-    var note = $('#auth-note');
-    var eye = $('#auth-eye');
-    var googleWrap = $('#auth-google');
-    var googleBtn = $('#auth-google-btn');
-    var query = new URLSearchParams(window.location.search);
-    var mode = 'signup';
-    var busy = false;
-
-    var plan = query.get('plan');
-    if (plan !== 'single' && plan !== 'monthly') plan = '';
-    if (plan) {
-      var chip = $('[data-plan-chip="' + plan + '"]');
-      if (chip) chip.hidden = false;
-    }
-
-    var emailRule = { id: 'email', test: function (v) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v); }, msg: 'Enter a valid email address, like you@business.com.' };
-    var passwordRule = {
-      id: 'password',
-      test: function () { return mode === 'login' ? password.value.length > 0 : password.value.length >= 8; },
-      msg: function () { return mode === 'login' ? 'Enter your password.' : 'Enter a password with at least 8 characters.'; }
-    };
-    function ruleMessage(rule) { return typeof rule.msg === 'function' ? rule.msg() : rule.msg; }
-
-    function setError(id, message) {
-      var input = document.getElementById(id);
-      var error = document.getElementById(id + '-error');
+    function value(id) { return document.getElementById(id).value.trim(); }
+    function setStep(n) { $$('.ob-steps li').forEach(function (li, i) { li.classList.toggle('is-on', i <= n); }); }
+    // 'instant' because the page's smooth scrolling is too slow for a jump this long.
+    function showCard() { $('.ob-card').scrollIntoView({ behavior: 'instant', block: 'start' }); }
+    function showError(rule, message) {
+      var input = document.getElementById(rule.id), error = document.getElementById(rule.id + '-error');
       error.textContent = message || '';
       error.hidden = !message;
-      if (message) {
-        input.setAttribute('aria-invalid', 'true');
-        input.setAttribute('aria-describedby', error.id);
-      } else {
-        input.removeAttribute('aria-invalid');
-        input.removeAttribute('aria-describedby');
-      }
+      if (message) { input.setAttribute('aria-invalid', 'true'); input.setAttribute('aria-describedby', error.id); }
+      else { input.removeAttribute('aria-invalid'); input.removeAttribute('aria-describedby'); }
     }
-
-    function showFormError(message) { note.hidden = true; formError.textContent = message; formError.hidden = false; }
-    function showNote(message) { formError.hidden = true; note.textContent = message; note.hidden = false; }
-    function clearMessages() { formError.hidden = true; note.hidden = true; }
-    function unavailableMessage() { return mode === 'login' ? 'Sign-in isn\'t available right now. Please try again a little later.' : 'Sign-up isn\'t available right now. Please try again a little later.'; }
-
-    function setBusy(state) {
-      busy = state;
-      submit.disabled = state;
-      submit.classList.toggle('is-busy', state);
-      googleBtn.disabled = state;
-    }
-
-    function setMode(next) {
-      mode = next === 'login' ? 'login' : 'signup';
-      $$('[data-for]').forEach(function (el) { el.hidden = el.getAttribute('data-for') !== mode; });
-      password.setAttribute('autocomplete', mode === 'login' ? 'current-password' : 'new-password');
-      password.setAttribute('placeholder', mode === 'login' ? 'Your password' : 'At least 8 characters');
-      clearMessages();
-      setError('email', '');
-      setError('password', '');
-    }
-
-    /* Passwords go only to Firebase Authentication, never to the form endpoint. */
-    function authRequest(method, body) {
+    function send(data, ms) {
+      var endpoint = (cfg.formEndpoint || '').trim();
+      if (!endpoint) return Promise.reject(new Error('unavailable'));
       var controller = window.AbortController ? new AbortController() : null;
-      var timeout = controller ? window.setTimeout(function () { controller.abort(); }, 20000) : 0;
-      return window.fetch(AUTH_URL + method + '?key=' + encodeURIComponent(apiKey), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: controller ? controller.signal : undefined
-      }).then(function (res) {
-        return res.json().then(function (data) {
-          window.clearTimeout(timeout);
-          if (res.ok) return data;
-          var failure = new Error('auth');
-          failure.code = String((data && data.error && data.error.message) || 'UNKNOWN').split(' ')[0];
-          throw failure;
-        });
-      }, function (err) {
-        window.clearTimeout(timeout);
-        throw err;
+      var timeout = controller ? window.setTimeout(function () { controller.abort(); }, ms || 30000) : 0;
+      return window.fetch(endpoint, { method: 'POST', body: data, redirect: 'follow', signal: controller ? controller.signal : undefined })
+        .then(function (res) { window.clearTimeout(timeout); return res.json(); }, function (err) { window.clearTimeout(timeout); throw err; });
+    }
+    function failure(message) { var e = new Error('order'); e.shown = message; return e; }
+    function problem(result) {
+      if (result && result.error === 'validation') return 'Please check your details and try again.';
+      if (result && result.error === 'rate_limited') return 'You\'ve reached the limit for now. Please try again later.';
+      return 'We couldn\'t save your details. Please try again.';
+    }
+    function offline(err) {
+      return err && err.message === 'unavailable' ? 'Orders can\'t be sent right now. Please try again a little later.' : 'We couldn\'t reach our server. Check your connection and try again.';
+    }
+    function setProgress(fraction, text) {
+      var percent = Math.round(fraction * 100);
+      $('#ob-percent').textContent = percent + '%';
+      $('#ob-bar i').style.width = percent + '%';
+      $('#ob-bar').setAttribute('aria-valuenow', String(percent));
+      if (text) $('#ob-status').textContent = text;
+    }
+    function orderFields(name) {
+      var data = new URLSearchParams();
+      data.set('form', name);
+      data.set('order_id', order.id);
+      data.set('token', order.token);
+      return data;
+    }
+
+    /* Files */
+    function filesProblem(item) {
+      var files = Array.prototype.slice.call(document.getElementById(item.id).files);
+      if (files.length > item.max) return 'You can add up to 6 images in each box.';
+      var bad = files.some(function (f) { return !EXT[f.type] || (f.type === 'image/svg+xml' && item.base !== 'logo') || f.size > MAX_FILE; });
+      return bad ? 'Use JPG, PNG, or WebP images under 10 MB.' : '';
+    }
+    uploads.forEach(function (item) {
+      var input = document.getElementById(item.id), count = $('[data-file-count="' + item.id + '"]');
+      input.addEventListener('change', function () {
+        var message = filesProblem(item), error = document.getElementById(item.id + '-error');
+        error.textContent = message;
+        error.hidden = !message;
+        count.textContent = input.files.length ? input.files.length + ' selected' : 'No file chosen';
+      });
+    });
+    function toBase64(file) {
+      return new Promise(function (resolve, reject) {
+        var reader = new FileReader();
+        reader.onload = function () { resolve(String(reader.result).split(',')[1]); };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
       });
     }
-
-    function authErrorMessage(err) {
-      switch (err.code) {
-        case undefined: return 'We couldn\'t reach our server. Check your connection and try again.';
-        case 'EMAIL_EXISTS': return 'An account with this email already exists. Log in instead.';
-        case 'INVALID_LOGIN_CREDENTIALS':
-        case 'EMAIL_NOT_FOUND':
-        case 'INVALID_PASSWORD': return 'That email or password isn\'t right.';
-        case 'TOO_MANY_ATTEMPTS_TRY_LATER': return 'Too many attempts. Please wait a few minutes and try again.';
-        case 'USER_DISABLED': return 'This account has been turned off. Contact us for help.';
-        case 'WEAK_PASSWORD': return 'Choose a stronger password.';
-        default: return unavailableMessage();
-      }
+    function chosenFiles() {
+      var list = [];
+      uploads.forEach(function (item) {
+        Array.prototype.slice.call(document.getElementById(item.id).files).forEach(function (file, i) {
+          var number = i + 1 < 10 ? '0' + (i + 1) : String(i + 1);
+          list.push({ file: file, name: (item.base === 'logo' ? 'logo' : item.base + '-' + number) + '.' + EXT[file.type] });
+        });
+      });
+      return list;
     }
 
-    function failAuth(err) {
-      setBusy(false);
-      if (err.code === 'INVALID_EMAIL' || err.code === 'MISSING_EMAIL') { setError('email', emailRule.msg); email.focus(); return; }
-      showFormError(authErrorMessage(err));
-    }
-
-    /* Records a new account in the Sheet. The password is never part of this. */
-    function saveLead(idToken) {
-      var endpoint = (cfg.formEndpoint || '').trim();
-      if (!endpoint) {
-        window.console.warn('SITE_CONFIG.formEndpoint is empty. Add it in assets/js/config.js to receive sign-ups.');
-        return Promise.resolve();
-      }
+    /* Steps */
+    function startOrder() {
+      if (order) return Promise.resolve();
       var data = new URLSearchParams();
-      data.set('firebase_token', idToken);
-      data.set('company', $('#company').value);
+      data.set('form', 'order_start');
+      [['full_name', 'o-name'], ['business', 'o-business'], ['website', 'o-website'], ['category', 'o-category'], ['email', 'o-email'], ['phone', 'o-phone'],
+       ['description', 'o-description'], ['instagram', 'o-instagram'], ['facebook', 'o-facebook'], ['language', 'o-language'], ['audience', 'o-audience'], ['objective', 'o-objective']
+      ].forEach(function (pair) { data.set(pair[0], value(pair[1])); });
+      data.set('company', $('#o-company').value);
       data.set('consent', 'yes');
-      data.set('interest', plan);
       ATTR_FIELDS.forEach(function (k) { if (attribution[k]) data.set(k, attribution[k]); });
       data.set('landing_page', attribution.landing_page || window.location.href);
       data.set('elapsed_ms', String(Date.now() - pageLoadedAt));
-
-      var controller = window.AbortController ? new AbortController() : null;
-      var timeout = controller ? window.setTimeout(function () { controller.abort(); }, 12000) : 0;
-      return window.fetch(endpoint, { method: 'POST', body: data, redirect: 'follow', signal: controller ? controller.signal : undefined })
-        .then(function (res) { return res.json(); })
-        .then(function (result) {
-          window.clearTimeout(timeout);
-          if (result && result.ok === true && result.status === 'created' && !store.sessionGet('vm_lead_sent')) {
-            store.sessionSet('vm_lead_sent', '1');
-            track('Lead', { content_name: 'signup', plan: plan }, { once: true, eventId: result.id || ('lead-' + Date.now()) });
-          }
-        });
-    }
-
-    /* The account already exists at this point, so a failed Sheet save must not block entry. */
-    function enter(account, isNew) {
-      store.set('vm_user', JSON.stringify({ email: String(account.email || '').toLowerCase(), name: account.displayName || '', plan: plan, uid: account.localId || '', idToken: account.idToken || '', refreshToken: account.refreshToken || '', expires: Date.now() + (Number(account.expiresIn) || 3600) * 1000 }));
-      $('#auth-title').textContent = 'Opening your studio…';
-      function go() {
-        // A short pause lets the conversion event send before the page changes.
-        window.setTimeout(function () { window.location.href = form.getAttribute('data-next'); }, 400);
-      }
-      if (isNew) saveLead(account.idToken).then(go, go); else go();
-    }
-
-    [emailRule, passwordRule].forEach(function (rule) {
-      var input = document.getElementById(rule.id);
-      input.addEventListener('input', function () {
-        if (input.getAttribute('aria-invalid') && rule.test(input.value.trim())) setError(rule.id, '');
+      return send(data).then(function (result) {
+        if (!result || result.ok !== true || !result.order_id) throw failure(problem(result));
+        order = { id: result.order_id, token: result.token, email: value('o-email').toLowerCase(), ai: !!result.ai };
+        if (result.lead_created) track('Lead', { content_name: 'order_form' }, { once: true, eventId: result.order_id });
       });
-    });
+    }
+    function uploadFiles() {
+      var list = chosenFiles();
+      return list.reduce(function (chain, item, i) {
+        return chain.then(function () {
+          setProgress(i / list.length, 'Uploading file ' + (i + 1) + ' of ' + list.length + '…');
+          return toBase64(item.file).then(function (content) {
+            var data = orderFields('order_file');
+            data.set('name', item.name);
+            data.set('mime', item.file.type);
+            data.set('data', content);
+            return send(data, 120000);
+          }).then(function (result) {
+            if (!result || result.ok !== true) throw failure(problem(result));
+            setProgress((i + 1) / list.length);
+          });
+        });
+      }, Promise.resolve());
+    }
+    function analyze() {
+      if (!order.ai) return Promise.resolve();
+      setProgress(1, 'Understanding your business…');
+      return send(orderFields('order_analyze'), 90000).then(function (result) {
+        analysis = (result && result.analysis) || null;
+        needDetails = !!(result && result.need_details);
+      }, function () { /* the order continues without it */ });
+    }
+    function fillAnalysis() {
+      $('#ob-analysis').hidden = !analysis;
+      $('#ob-need-details').hidden = !needDetails;
+      if (!analysis) return;
+      $('#ob-a-business').textContent = analysis.business;
+      $('#ob-a-audience').textContent = analysis.audience;
+      $('#ob-a-opportunity').textContent = analysis.opportunity;
+      $('#ob-a-concept').textContent = analysis.concept;
+      var list = $('#ob-a-found');
+      list.textContent = '';
+      (analysis.discoveries || []).forEach(function (line) {
+        var li = document.createElement('li');
+        li.textContent = line;
+        list.appendChild(li);
+      });
+    }
+    function showReview() {
+      form.hidden = true;
+      progress.hidden = true;
+      review.hidden = false;
+      busy = false;
+      setStep(1);
+      fillAnalysis();
+      showCard();
+    }
+    function showDone() {
+      form.hidden = true;
+      progress.hidden = true;
+      review.hidden = true;
+      payment.hidden = true;
+      done.hidden = false;
+      setStep(3);
+      $('#ob-order-id').textContent = order.id;
+      $('#ob-sent').textContent = 'We\'ve sent a confirmation to ' + order.email + '.';
+      $('h3', done).focus({ preventScroll: true });
+      showCard();
+    }
+    function selectedPlan() { return $('#ob-plan-double').checked ? 'double' : 'single'; }
+    function payFailed(message) {
+      busy = false;
+      payButton.disabled = false;
+      payButton.textContent = payLabel;
+      payError.textContent = message;
+      payError.hidden = false;
+    }
 
+    rules.forEach(function (rule) {
+      var input = document.getElementById(rule.id);
+      input.addEventListener('input', function () { if (input.getAttribute('aria-invalid') && rule.test(input.value.trim())) showError(rule, ''); });
+    });
     form.addEventListener('focusin', function () { track('LeadFormStart', {}, { once: true }); }, { once: true });
+    $$('[data-pick-plan]').forEach(function (link) {
+      link.addEventListener('click', function () { $('#ob-plan-' + link.getAttribute('data-pick-plan')).checked = true; });
+    });
 
     form.addEventListener('submit', function (event) {
       event.preventDefault();
       if (busy) return;
-      clearMessages();
+      formError.hidden = true;
       var firstBad = null;
-      [emailRule, passwordRule].forEach(function (rule) {
-        var input = document.getElementById(rule.id);
-        var ok = rule.test(input.value.trim());
-        setError(rule.id, ok ? '' : ruleMessage(rule));
+      rules.forEach(function (rule) {
+        var input = document.getElementById(rule.id), ok = rule.test(input.value.trim());
+        showError(rule, ok ? '' : rule.msg);
         if (!ok && !firstBad) firstBad = input;
       });
+      uploads.forEach(function (item) {
+        var message = filesProblem(item), error = document.getElementById(item.id + '-error');
+        error.textContent = message;
+        error.hidden = !message;
+        if (message && !firstBad) firstBad = document.getElementById(item.id);
+      });
       if (firstBad) { firstBad.focus(); return; }
-      if ($('#company').value) return;
-      if (!apiKey) {
-        window.console.warn('SITE_CONFIG.firebaseApiKey is empty. Add it in assets/js/config.js to turn on accounts.');
-        showFormError(unavailableMessage());
-        return;
-      }
-      var isNew = mode === 'signup';
-      setBusy(true);
-      authRequest(isNew ? 'signUp' : 'signInWithPassword', {
-        email: email.value.trim().toLowerCase(),
-        password: password.value,
-        returnSecureToken: true
-      }).then(function (account) {
-        password.value = '';
-        enter(account, isNew);
-      }).catch(failAuth);
-    });
 
-    $$('[data-auth-mode]').forEach(function (b) {
-      b.addEventListener('click', function () {
-        setMode(b.getAttribute('data-auth-mode'));
-        email.focus();
+      busy = true;
+      submit.disabled = true;
+      form.hidden = true;
+      progress.hidden = false;
+      setProgress(0, 'Saving your details…');
+      startOrder().then(uploadFiles).then(analyze).then(showReview).catch(function (err) {
+        busy = false;
+        submit.disabled = false;
+        submit.textContent = label;
+        progress.hidden = true;
+        form.hidden = false;
+        formError.textContent = err && err.shown ? err.shown : offline(err);
+        formError.hidden = false;
       });
     });
 
-    eye.addEventListener('click', function () {
-      var show = password.type === 'password';
-      password.type = show ? 'text' : 'password';
-      eye.setAttribute('aria-pressed', String(show));
-      eye.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
-    });
-
-    $('#auth-forgot').addEventListener('click', function () {
-      if (busy) return;
-      clearMessages();
-      if (!emailRule.test(email.value.trim())) {
-        setError('email', 'Enter your email first, then choose Forgot password.');
-        email.focus();
-        return;
-      }
-      setError('email', '');
-      if (!apiKey) { showFormError(unavailableMessage()); return; }
-      setBusy(true);
-      authRequest('sendOobCode', { requestType: 'PASSWORD_RESET', email: email.value.trim().toLowerCase() })
-        .catch(function (err) { if (err.code !== 'EMAIL_NOT_FOUND') throw err; })
-        .then(function () {
-          setBusy(false);
-          // The same reply either way, so this can't reveal who has an account.
-          showNote('If that email has an account, we\'ve sent a link to reset the password.');
-        })
-        .catch(failAuth);
-    });
-
-    /* Google sign-in appears only when it is configured. */
-    var clientId = (cfg.googleClientId || '').trim();
-    if (apiKey && /\.apps\.googleusercontent\.com$/.test(clientId)) {
-      var tokenClient = null;
-      var googleFailed = function () {
-        setBusy(false);
-        showFormError('Google sign-in didn\'t finish. Please try again or use your email.');
-      };
-      var script = document.createElement('script');
-      script.src = 'https://accounts.google.com/gsi/client';
-      script.async = true;
-      script.onload = function () {
-        tokenClient = window.google.accounts.oauth2.initTokenClient({
-          client_id: clientId,
-          scope: 'openid email profile',
-          error_callback: googleFailed,
-          callback: function (response) {
-            if (!response.access_token) { googleFailed(); return; }
-            authRequest('signInWithIdp', {
-              postBody: 'access_token=' + encodeURIComponent(response.access_token) + '&providerId=google.com',
-              requestUri: window.location.origin,
-              returnSecureToken: true
-            }).then(function (account) {
-              if (account.needConfirmation) {
-                setBusy(false);
-                showFormError('This email already has a password. Log in with it instead.');
-                return;
-              }
-              enter(account, !!account.isNewUser);
-            }).catch(function (err) {
-              if (err.code === undefined) failAuth(err); else googleFailed();
-            });
-          }
-        });
-        googleWrap.hidden = false;
-      };
-      document.head.appendChild(script);
-      googleBtn.addEventListener('click', function () {
-        if (busy || !tokenClient) return;
-        clearMessages();
-        track('LeadFormStart', {}, { once: true });
-        setBusy(true);
-        tokenClient.requestAccessToken();
-      });
+    /* The payment page is a test: card details stay in this page and are never sent or saved. */
+    var TEST_CARD = '4242424242424242';
+    var billingRules = [
+      { id: 'b-name', test: function (v) { return v.length >= 2; }, msg: 'Enter the billing name.' },
+      { id: 'b-address', test: function (v) { return v.length >= 3; }, msg: 'Enter your street address.' },
+      { id: 'b-city', test: function (v) { return v.length > 0; }, msg: 'Enter your city.' },
+      { id: 'b-postal', test: function (v) { return v.length > 0; }, msg: 'Enter your postal code.' },
+      { id: 'b-country', test: function (v) { return v.length > 1; }, msg: 'Enter your country.' }
+    ];
+    function expiryOk(v) {
+      var m = v.match(/^(\d{2})\/(\d{2})$/);
+      if (!m || Number(m[1]) < 1 || Number(m[1]) > 12) return false;
+      var now = new Date();
+      var year = 2000 + Number(m[2]);
+      return year > now.getFullYear() || (year === now.getFullYear() && Number(m[1]) >= now.getMonth() + 1);
     }
+    var cardRules = [
+      { id: 'c-number', test: function (v) { return v.replace(/\s/g, '') === TEST_CARD; }, msg: 'This is a test page. Use the test card number 4242 4242 4242 4242.' },
+      { id: 'c-expiry', test: expiryOk, msg: 'Enter a valid expiry date, like 12/30.' },
+      { id: 'c-cvc', test: function (v) { return /^\d{3,4}$/.test(v); }, msg: 'Enter the 3 or 4 digit security code.' }
+    ];
+    function clearCard() { cardRules.forEach(function (rule) { document.getElementById(rule.id).value = ''; showError(rule, ''); }); }
+    billingRules.concat(cardRules).forEach(function (rule) {
+      var input = document.getElementById(rule.id);
+      input.addEventListener('input', function () { if (input.getAttribute('aria-invalid') && rule.test(input.value.trim())) showError(rule, ''); });
+    });
+    $('#c-number').addEventListener('input', function () {
+      this.value = this.value.replace(/\D/g, '').slice(0, 16).replace(/(\d{4})(?=\d)/g, '$1 ');
+    });
+    $('#c-expiry').addEventListener('input', function () {
+      var digits = this.value.replace(/\D/g, '').slice(0, 4);
+      this.value = digits.length > 2 ? digits.slice(0, 2) + '/' + digits.slice(2) : digits;
+    });
+    $('#c-cvc').addEventListener('input', function () { this.value = this.value.replace(/\D/g, '').slice(0, 4); });
+    $('#ob-test-card').addEventListener('click', function () {
+      var next = String((new Date().getFullYear() + 2) % 100);
+      $('#c-number').value = '4242 4242 4242 4242';
+      $('#c-expiry').value = '12/' + (next.length < 2 ? '0' + next : next);
+      $('#c-cvc').value = '123';
+      cardRules.forEach(function (rule) { showError(rule, ''); });
+    });
 
-    setMode(query.get('mode'));
+    function showPayment() {
+      order.plan = selectedPlan();
+      review.hidden = true;
+      payment.hidden = false;
+      setStep(2);
+      $$('[data-sum-plan]').forEach(function (n) { n.hidden = n.getAttribute('data-sum-plan') !== order.plan; });
+      payLabel = 'Pay $' + PRICES[order.plan];
+      payButton.textContent = payLabel;
+      if (!$('#b-name').value) $('#b-name').value = value('o-name');
+      track('InitiateCheckout', { value: PRICES[order.plan], currency: 'USD', content_name: order.plan }, { once: true, key: order.id });
+      showCard();
+    }
+    $('#ob-to-pay').addEventListener('click', function () { if (order) showPayment(); });
+    $('#ob-back').addEventListener('click', function () {
+      if (busy) return;
+      clearCard();
+      payError.hidden = true;
+      payment.hidden = true;
+      review.hidden = false;
+      setStep(1);
+      showCard();
+    });
+
+    payButton.addEventListener('click', function () {
+      if (busy || !order) return;
+      payError.hidden = true;
+      var firstBad = null;
+      billingRules.concat(cardRules).forEach(function (rule) {
+        var input = document.getElementById(rule.id), ok = rule.test(input.value.trim());
+        showError(rule, ok ? '' : rule.msg);
+        if (!ok && !firstBad) firstBad = input;
+      });
+      if (!cardRules[0].test($('#c-number').value)) $('#c-number').value = '';
+      if (firstBad) { firstBad.focus(); return; }
+
+      busy = true;
+      payButton.disabled = true;
+      payButton.textContent = 'Processing your payment…';
+      var data = orderFields('order_paid');
+      data.set('plan', order.plan);
+      data.set('billing_name', value('b-name'));
+      data.set('billing_address', value('b-address'));
+      data.set('billing_city', value('b-city'));
+      data.set('billing_region', value('b-region'));
+      data.set('billing_postal', value('b-postal'));
+      data.set('billing_country', value('b-country'));
+      send(data).then(function (result) {
+        if (!result || result.ok !== true) { payFailed(problem(result)); return; }
+        busy = false;
+        clearCard();
+        showDone();
+      }, function (err) { payFailed(offline(err)); });
+    });
   }
 
   /* ---------- Contact form ---------- */
@@ -778,21 +842,8 @@
   }
 
   /* ---------- Signed-in shortcuts in the public navigation ---------- */
-  function initAccountNav() {
-    if (!store.get('vm_user')) return;
-    $$('.nav-login, .nav-menu-login').forEach(function (a) {
-      a.textContent = 'Dashboard';
-      a.href = a.getAttribute('href').replace('signup/?mode=login', 'dashboard/');
-    });
-    $$('.nav-cta, .nav-menu-cta').forEach(function (a) {
-      a.textContent = 'Open Studio';
-      a.href = a.getAttribute('href').replace('signup/', 'app/');
-    });
-  }
-
   /* ---------- Start ---------- */
   window.velmioTrack = track;
-  initAccountNav();
   initTheme();
   initContact();
   initNav();
@@ -801,7 +852,8 @@
   initSticky();
   initCTAs();
   initViewEvents();
-  initSignup(captureAttribution());
+  var firstTouch = captureAttribution();
+  initOrderForm(firstTouch);
   initContactForm();
   initConsent();
   track('PageView', {}, { once: true });

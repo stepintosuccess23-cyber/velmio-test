@@ -100,7 +100,7 @@
     button.setAttribute('aria-label', T('Open') + ': ' + title);
   }
   function statusChip(status) {
-    var labels = { completed: 'Completed', draft: 'Draft', processing: 'Processing', failed: 'Failed' };
+    var labels = { completed: 'Completed', draft: 'Draft', processing: 'In production', failed: 'Failed' };
     return el('span', 'status is-' + status, labels[status] || status);
   }
   function downloadVideo(v) {
@@ -149,12 +149,27 @@
       if (yes) Lib.remove(v.id).then(refresh);
     });
   }
+  function watchLink(v) {
+    var a = el('a');
+    a.href = v.videoLink;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.setAttribute('role', 'menuitem');
+    a.innerHTML = UI.ic('play');
+    a.appendChild(el('span', '', 'Watch video'));
+    return a;
+  }
+  function updateFromSheet() {
+    Lib.syncOrders().then(function (changed) { if (changed) refresh(); });
+  }
   function videoCard(v) {
     var card = el('article', 'vcard');
     var thumb = el('button', 'vthumb');
     thumb.type = 'button';
     thumbInto(thumb, v.thumb, v.title);
-    thumb.addEventListener('click', function () { openPlayer(v); });
+    if (v.blob) thumb.addEventListener('click', function () { openPlayer(v); });
+    else if (v.videoLink) thumb.addEventListener('click', function () { window.open(v.videoLink, '_blank', 'noopener'); });
+    else { thumb.disabled = true; $('.vplay', thumb).hidden = true; }
     var body = el('div', 'vbody');
     var text = el('div', 'vtext');
     var name = el('strong', '', v.title); name.setAttribute('translate', 'no');
@@ -167,14 +182,16 @@
     editLink.setAttribute('role', 'menuitem');
     editLink.innerHTML = UI.ic('pencil');
     editLink.appendChild(el('span', '', 'Edit'));
-    body.appendChild(moreMenu([
+    var rename = menuButton('Rename', 'pencil', function () { renameVideo(v); });
+    var remove = menuButton('Delete', 'trash', function () { deleteVideo(v); }, true);
+    body.appendChild(moreMenu(v.blob ? [
       menuButton('Open', 'play', function () { openPlayer(v); }),
       editLink,
       menuButton('Download', 'download', function () { downloadVideo(v); }),
-      menuButton('Rename', 'pencil', function () { renameVideo(v); }),
+      rename,
       menuButton('Duplicate', 'copy', function () { Lib.duplicate(v.id, T(v.title + ' copy')).then(refresh); }),
-      menuButton('Delete', 'trash', function () { deleteVideo(v); }, true)
-    ], 'More actions'));
+      remove
+    ] : (v.videoLink ? [watchLink(v), rename, remove] : [rename, remove]), 'More actions'));
     card.appendChild(thumb);
     card.appendChild(body);
     return card;
@@ -203,6 +220,7 @@
       }).catch(function () { loadError(area); });
     };
     refresh();
+    updateFromSheet();
   }
 
   /* ---------- My Videos ---------- */
@@ -231,6 +249,7 @@
     $('#v-grid').addEventListener('click', function () { setView(false); });
     $('#v-list').addEventListener('click', function () { setView(true); });
     refresh();
+    updateFromSheet();
   }
 
   /* ---------- Projects ---------- */
@@ -247,7 +266,7 @@
           return;
         }
         var title = p.title || p.business || T('Untitled project');
-        var finished = data[1].some(function (v) { return v.projectTitle === title; });
+        var finished = data[1].some(function (v) { return v.projectTitle === title && v.status === 'completed'; });
         var g = el('div', 'video-grid');
         var card = el('article', 'vcard pcard');
         var cover = el('a', 'vthumb');
@@ -300,7 +319,7 @@
   /* ---------- History ---------- */
   var EVENTS = {
     project: ['Project created', 'folder'], photos: ['Photos uploaded', 'image'], script: ['Script generated', 'spark-line'],
-    voice: ['Voiceover generated', 'mic'], rendered: ['Video rendered', 'film'], downloaded: ['Video downloaded', 'download'], updated: ['Project updated', 'pencil']
+    voice: ['Voiceover generated', 'mic'], order: ['Order sent', 'film'], rendered: ['Video rendered', 'film'], downloaded: ['Video downloaded', 'download'], updated: ['Project updated', 'pencil']
   };
   function initHistory() {
     var area = $('#history-area');
@@ -322,26 +341,68 @@
     }).catch(function () { loadError(area); });
   }
 
-  /* ---------- Brand kit: a live preview only; nothing here is stored ---------- */
-  function initBrand() {
-    function paint() {
-      var box = $('#b-preview');
-      box.style.background = 'linear-gradient(150deg,' + $('#b-primary').value + ',' + $('#b-secondary').value + ')';
-      box.style.fontFamily = $('#b-font').value;
-      $('#b-preview-name').textContent = $('#b-name').value.trim() || T('Your brand');
-      $('#b-preview-close').textContent = $('#b-close').value.trim() || T('Your closing message');
+  /* ---------- Billing: the plan and videos used come from the Orders tab ---------- */
+  function initBilling() {
+    var NAMES = { single: '1 Video', double: '2 Videos' };
+    var ASK = { single: 'Get 1 video? This is a test, so you won\'t be charged.', double: 'Get 2 videos? This is a test, so you won\'t be charged.' };
+    var cards = $$('[data-plan-card]'), note = $('#bill-error');
+    function fail(message) { note.textContent = message; note.hidden = false; $('#bill-plan').textContent = '—'; }
+    var live = false;
+    function say(message) { note.textContent = message; note.hidden = false; }
+    function draw(p) {
+      note.hidden = true;
+      live = !!p.live;
+      $('.bill-test').hidden = live;
+      $('#bill-plan').textContent = p.plan ? NAMES[p.plan] : 'No plan yet';
+      $('#bill-usage').hidden = !p.plan;
+      $('#bill-meter').hidden = !p.plan;
+      if (p.plan) {
+        $('#bill-used').textContent = p.used + ' of ' + p.limit + ' used';
+        $('#bill-meter i').style.width = Math.min(100, p.used / p.limit * 100) + '%';
+      }
+      cards.forEach(function (card) {
+        var id = card.getAttribute('data-plan-card'), button = $('button', card), current = id === p.plan;
+        var again = current && p.remaining < 1;
+        card.classList.toggle('is-current', current);
+        button.disabled = current && !again;
+        button.textContent = again ? 'Buy again' : current ? 'Current plan' : !p.plan ? 'Choose plan' : id === 'double' ? 'Upgrade' : 'Switch plan';
+      });
     }
-    ['b-name', 'b-primary', 'b-secondary', 'b-font', 'b-close'].forEach(function (id) { $('#' + id).addEventListener('input', paint); });
-    $('#b-logo').addEventListener('change', function () {
-      var f = this.files[0], img = $('#b-preview-logo');
-      img.hidden = !f;
-      if (f) img.src = URL.createObjectURL(f);
+    cards.forEach(function (card) {
+      var id = card.getAttribute('data-plan-card'), button = $('button', card);
+      button.addEventListener('click', function () {
+        var u = UI.user() || {};
+        if (u.guest) { window.location.href = $('.bill-plans').getAttribute('data-login'); return; }
+        function buy() {
+          button.disabled = true;
+          Lib.buyPlan(id).then(function (r) {
+            if (r.url) window.location.href = r.url;
+            else draw(r);
+          }, function () { say('We couldn\'t start your payment. Please try again.'); button.disabled = false; });
+        }
+        if (live) buy();
+        else UI.ask({ message: ASK[id], confirm: 'Confirm' }).then(function (go) { if (go) buy(); });
+      });
     });
-    paint();
+    // Back from PayPal: confirm the payment, then show the updated plan.
+    var query = new URLSearchParams(window.location.search), back = query.get('paypal'), paypalOrder = query.get('token'), problem = '';
+    if (back) {
+      window.history.replaceState(null, '', window.location.pathname + '#billing');
+      if (back === 'cancel') problem = 'Your payment was cancelled. You can try again.';
+    }
+    (back === 'return' && paypalOrder ? Lib.capture(paypalOrder) : Promise.resolve()).catch(function (err) {
+      problem = err.message === 'declined' ? 'Your payment was declined. Please try again.'
+        : err.message === 'pending' ? 'PayPal is still reviewing your payment. Contact us if it isn\'t confirmed soon.'
+        : 'We couldn\'t confirm your payment. Please contact us.';
+    }).then(function () { return Lib.plan(); }).then(function (p) {
+      draw(p);
+      if (problem) say(problem);
+    }, function () { fail('We couldn\'t load your plan. Please try again.'); });
   }
 
   /* ---------- Settings ---------- */
   function initSettings() {
+    initBilling();
     function showTab(name) {
       if (!$('[data-tab="' + name + '"]')) name = 'profile';
       $$('[data-tab]').forEach(function (b) { b.setAttribute('aria-selected', String(b.getAttribute('data-tab') === name)); });
@@ -386,5 +447,5 @@
     });
   }
 
-  ({ dashboard: initDashboard, videos: initVideos, projects: initProjects, history: initHistory, brand: initBrand, settings: initSettings }[pageId] || function () {})();
+  ({ dashboard: initDashboard, videos: initVideos, projects: initProjects, history: initHistory, settings: initSettings }[pageId] || function () {})();
 })();

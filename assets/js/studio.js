@@ -45,7 +45,7 @@
     voice: { kind: 'none', id: '', name: '' }, size: '9:16', res: 1080, length: 20, endLogo: true, source: '',
     activeId: null, nextId: 1, saveState: 'empty', aiBusy: false, voBusy: false, rendering: false, cancel: false, result: null,
     composerOpen: true, premium: { state: 'idle', voices: [] },
-    audioMode: 'text_voice', lastVoice: null, voiceRate: 1, voiceVolume: 1, voiceMuted: false, title: ''
+    audioMode: 'text_voice', lastVoice: null, voiceRate: 1, voiceVolume: 1, voiceMuted: false, title: '', music: false, sfx: false
   };
 
   /* ---------- Session ---------- */
@@ -64,22 +64,8 @@
   /* A sign-in lasts an hour, so it is renewed quietly before calling the backend. */
   function signInToken() {
     var user = session.user || {};
-    if (user.idToken && user.expires > Date.now() + 60000) return Promise.resolve(user.idToken);
-    var key = (config().firebaseApiKey || '').trim();
-    if (!user.refreshToken || !key) return Promise.reject(failure('auth'));
-    var body = new URLSearchParams();
-    body.set('grant_type', 'refresh_token');
-    body.set('refresh_token', user.refreshToken);
-    return window.fetch('https://securetoken.googleapis.com/v1/token?key=' + encodeURIComponent(key), { method: 'POST', body: body })
-      .then(function (res) { return res.json(); })
-      .then(function (data) {
-        if (!data.id_token) throw failure('auth');
-        user.idToken = data.id_token;
-        user.refreshToken = data.refresh_token || user.refreshToken;
-        user.expires = Date.now() + (Number(data.expires_in) || 3600) * 1000;
-        try { window.localStorage.setItem('vm_user', JSON.stringify(user)); } catch (e) { /* storage blocked */ }
-        return user.idToken;
-      });
+    if (user.guest) return Promise.reject(failure('ai_off'));
+    return window.VelmioLibrary.token(user);
   }
 
   function backend(form, fields, timeoutMs) {
@@ -106,7 +92,7 @@
 
   function backendMessage(err, fallback) {
     switch (err && err.code) {
-      case 'ai_off': return 'AI script writing isn\'t connected yet. You can use Draft without AI for now.';
+      case 'ai_off': return 'AI script writing isn\'t connected yet. You can edit the text yourself.';
       case 'voice_off': return 'Studio voices aren\'t connected yet. You can use a device voice or no voiceover.';
       case 'auth': return 'Your sign-in has expired. Please log out and log in again.';
       case 'rate_limited': return 'You\'ve reached the limit for now. Please try again later.';
@@ -233,7 +219,7 @@
   function snapshot() {
     return {
       v: 2, step: S.step === 'generating' || S.step === 'result' ? 'format' : S.step, savedAt: Date.now(),
-      audioMode: S.audioMode, lastVoice: S.lastVoice, voiceRate: S.voiceRate, voiceVolume: S.voiceVolume, title: S.title,
+      audioMode: S.audioMode, lastVoice: S.lastVoice, voiceRate: S.voiceRate, voiceVolume: S.voiceVolume, title: S.title, music: S.music, sfx: S.sfx,
       business: S.business, brief: S.brief, cta: S.cta, tone: S.tone, scriptLang: S.scriptLang, platform: S.platform,
       voice: S.voice, size: S.size, res: S.res, length: S.length, endLogo: S.endLogo, source: S.source, nextId: S.nextId,
       logo: S.logo ? { blob: S.logo.blob, name: S.logo.name } : null,
@@ -281,7 +267,6 @@
   }
   function changed() {
     S.saveState = 'unsaved';
-    if (S.result) S.result.stale = true;
     window.clearTimeout(saveTimer);
     saveTimer = window.setTimeout(saveNow, 700);
     renderFacts();
@@ -293,7 +278,6 @@
   function validate(step) {
     if (step === 'voice') {
       if (S.audioMode !== 'text' && S.voice.kind === 'none') return 'Choose a narrator, or switch to Text only.';
-      if (S.audioMode === 'voice' && S.voice.kind !== 'premium') return 'Voiceover only needs a studio voice, because device voices aren\'t included in downloads.';
     }
     if (step === 'photos' && S.scenes.length < MIN_PHOTOS) return 'Add at least ' + MIN_PHOTOS + ' photos to continue.';
     if (step === 'script') {
@@ -360,7 +344,7 @@
       show(target);
     });
   });
-  $('#rail-result').addEventListener('click', function () { show('result'); renderEditor(); });
+  $('#rail-result').addEventListener('click', function () { show('result'); checkOrderReady(); });
   $('#open-preview').addEventListener('click', function () { root.classList.add('show-preview'); $('#scrim').hidden = false; refreshPreview(); });
   $('#close-preview').addEventListener('click', function () { stopPreview(); closePreviewDrawer(); });
   $('#scrim').addEventListener('click', function () { stopPreview(); closePreviewDrawer(); });
@@ -418,7 +402,6 @@
     S.scenes.splice(to, 0, S.scenes.splice(from, 1)[0]);
     renderPhotos();
     renderStoryboard();
-    renderEditor();
     changed();
   }
   function removeScene(i) {
@@ -587,24 +570,11 @@
     });
     S.source = 'draft';
   }
-  $('#draft-script').addEventListener('click', function () {
-    if (S.scenes.length < MIN_PHOTOS) { error('Add at least ' + MIN_PHOTOS + ' photos to continue.'); return; }
-    okToOverwrite().then(function (go) {
-      if (!go) return;
-      error('');
-      draftScript();
-      S.composerOpen = false;
-      setAiState('', '');
-      renderComposer();
-      renderStoryboard();
-      changed();
-    });
-  });
 
   /* ---------- AI script ---------- */
   function setAiBusy(on) {
     S.aiBusy = on;
-    ['#ai-generate', '#story-regenerate', '#draft-script'].forEach(function (s) { $(s).disabled = on; });
+    ['#ai-generate', '#story-regenerate'].forEach(function (s) { $(s).disabled = on; });
     $$('#quick-actions button, [data-regen], [data-shorten]').forEach(function (b) { b.disabled = on; });
   }
   function setAiState(kind, message, retry) {
@@ -683,11 +653,23 @@
       })
       .catch(function (err) {
         setAiBusy(false);
+        // Until AI is connected, the button writes a simple script on this device.
+        if (mode === 'full' && err && err.code === 'ai_off') {
+          draftScript();
+          S.composerOpen = false;
+          setAiState('', '');
+          renderComposer();
+          renderStoryboard();
+          changed();
+          return;
+        }
         setAiState('error', backendMessage(err, 'We couldn\'t write your script. Please try again.'), function () { runAi(mode, extra, loadingText); });
       });
   }
+  var NO_PLAN = 'Go to Billing to choose a plan.', PLAN_USED = 'You\'ve used all the videos on your plan. Go to Billing to get more.';
   var WRITING = 'Creating your promotional script...';
   function runWhole() {
+    if (S.scenes.length < MIN_PHOTOS) { error('Add at least ' + MIN_PHOTOS + ' photos to continue.'); return; }
     if (S.aiBusy || !checkComposer()) return;
     okToOverwrite().then(function (go) { if (go) runAi('full', null, WRITING); });
   }
@@ -893,14 +875,14 @@
     list.textContent = '';
 
     if (S.premium.voices.length) {
-      list.appendChild(voiceGroup('Studio voices', 'Included in your downloaded video.'));
+      list.appendChild(voiceGroup('Studio voices', 'Our team will use this voice for your video.'));
       S.premium.voices.forEach(function (v) {
         var detail = [v.language, v.accent, v.gender, v.style].filter(Boolean).join(' · ');
         list.appendChild(voiceRow('premium', v.id, v.name, detail, v.preview ? function () { playSample(v.preview); } : null, 'Listen to ' + v.name));
       });
     }
 
-    list.appendChild(voiceGroup('Device voices', 'For preview only. These aren\'t included in your downloaded video.'));
+    list.appendChild(voiceGroup('Device voices', 'Our team will use your choice as a guide for the final voice.'));
     var voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
     var code = S.scriptLang;
     var matching = voices.filter(function (v) { return v.lang.toLowerCase().indexOf(code) === 0; });
@@ -938,8 +920,13 @@
     $('#mix-mute').setAttribute('aria-pressed', String(S.voiceMuted));
     $('#mix-mute').setAttribute('aria-label', S.voiceMuted ? 'Unmute narration' : 'Mute narration');
     $('#track-voice').classList.toggle('is-off', !browser && !premium);
-    $('#mix-note').textContent = browser ? 'Device voices are for preview only, so these settings don\'t change your downloaded video.'
-      : premium ? 'Studio voices play at full level in your video.' : '';
+    $('#mix-note').textContent = browser ? 'These settings only change the preview.'
+      : '';
+    $$('[data-yesno]').forEach(function (b) {
+      var on = S[b.getAttribute('data-yesno')] === (b.getAttribute('data-value') === 'yes');
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-checked', String(on));
+    });
   }
   function setAudioMode(mode) {
     if (mode === 'text') {
@@ -956,6 +943,13 @@
   }
   $$('[data-mode]').forEach(function (b) {
     b.addEventListener('click', function () { setAudioMode(b.getAttribute('data-mode')); });
+  });
+  $$('[data-yesno]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      S[b.getAttribute('data-yesno')] = b.getAttribute('data-value') === 'yes';
+      renderAudio();
+      changed();
+    });
   });
   $('#voice-rate').addEventListener('input', function () { S.voiceRate = Number(this.value); changed(); });
   function setVoiceVolume(value) {
@@ -1117,8 +1111,7 @@
   /* ---------- Inspector and live preview ---------- */
   function statusText() {
     if (S.rendering) return 'Creating your video';
-    if (S.result && !S.result.stale) return 'Video ready';
-    if (S.result) return 'Edited since last render';
+    if (S.result) return 'Order received';
     if (S.saveState === 'failed') return 'Couldn\'t save';
     if (S.saveState === 'unsaved' || S.saveState === 'saving') return 'Saving…';
     if (S.saveState === 'saved') return 'Saved on this device';
@@ -1232,12 +1225,6 @@
     if (line) lines.push(line);
     return lines;
   }
-  function pickMime(withAudio) {
-    var list = withAudio
-      ? ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4;codecs=avc1.4d002a,mp4a.40.2', 'video/mp4;codecs=avc1.640028,opus', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
-      : ['video/mp4;codecs=avc1.640028', 'video/mp4;codecs=avc1.4d002a', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
-    return list.filter(function (m) { return window.MediaRecorder.isTypeSupported(m); })[0];
-  }
   function clamp01(v) { return Math.max(0, Math.min(1, v)); }
   function ease(v) { return 1 - Math.pow(1 - v, 3); }
 
@@ -1350,19 +1337,26 @@
     };
   }
 
+  /* ---------- Sending the order ---------- */
+  var MODE_NAMES = { text: 'Text only', voice: 'Voiceover only', text_voice: 'Text + Voiceover' };
+  var MAX_ORIGINAL = 4 * 1024 * 1024, MAX_SIDE = 2400;
+  function projectTitle() { return (S.title || S.business || '').trim() || T('Untitled project'); }
+  function logEvent(type) { if (window.VelmioLibrary) window.VelmioLibrary.log(type, projectTitle()); }
+
+  // The percent is real: it moves as each file reaches the team's folder.
   function setProgress(fraction, text) {
     var pct = Math.round(fraction * 100);
     var bar = $('#render-bar');
     bar.setAttribute('aria-valuenow', String(pct));
     $('i', bar).style.width = pct + '%';
+    $('#render-percent').textContent = pct + '%';
     if (text) $('#render-status').textContent = text;
   }
-  var JOB_STEPS = [['assets', 'Preparing assets'], ['scenes', 'Building scenes'], ['voice', 'Generating narration'], ['render', 'Rendering video'], ['final', 'Finalizing export']];
-  function renderJobSteps(withVoice) {
+  var JOB_STEPS = [['photos', 'Preparing your photos'], ['upload', 'Uploading your photos'], ['script', 'Sending your script'], ['done', 'Order received']];
+  function renderJobSteps() {
     var list = $('#job-steps');
     list.textContent = '';
     JOB_STEPS.forEach(function (j) {
-      if (j[0] === 'voice' && !withVoice) return;
       var li = el('li', '', j[1]); li.setAttribute('data-job', j[0]);
       list.appendChild(li);
     });
@@ -1381,287 +1375,60 @@
     show('format');
     error(message);
   }
-
-  function generate() {
-    if (S.rendering) return;
-    if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) {
-      error('This browser can\'t make videos yet. Please use the latest Chrome, Edge, or Safari.');
-      return;
-    }
-    var blocker = firstInvalid(STEPS.length);
-    if (blocker) { var why = validate(blocker); show(blocker); error(why); return; }
-
-    var size = outputSize(), W = size.w, H = size.h;
-    var canvas = $('#render-canvas');
-    canvas.width = W; canvas.height = H;
-    canvas.style.aspectRatio = W + ' / ' + H;
-    var wantVoice = S.voice.kind === 'premium' && spokenScenes().length > 0;
-    var audioCtx = wantVoice ? audioContext() : null;  // Started by the click, so browsers allow sound.
-    S.rendering = true; S.cancel = false;
-    renderJobSteps(wantVoice);
-    show('generating');
-    setJob('assets');
-    setProgress(0, 'Preparing your photos…');
-    track('Generate_Start', { size: S.size, resolution: S.res, length: S.length });
-
-    var images = {}, logo = null;
-    var scenesToLoad = S.scenes.slice();
-    var chain = (document.fonts && document.fonts.load ? document.fonts.load('600 40px Sora') : Promise.resolve()).catch(function () {});
-    scenesToLoad.forEach(function (s, i) {
-      chain = chain.then(function () {
-        return loadBlobImage(s.photo.blob).catch(function () { throw new Error('photo:' + s.photo.name); });
-      }).then(function (r) {
-        // Up to 1.25x the frame, so the slow zoom stays sharp. The photo itself is never altered.
-        var scale = Math.min(1, Math.max(W / r.img.naturalWidth, H / r.img.naturalHeight) * 1.25);
-        images[s.photo.id] = scaleImage(r.img, Math.max(r.img.naturalWidth, r.img.naturalHeight) * scale);
-        URL.revokeObjectURL(r.url);
-        setProgress(0.12 * (i + 1) / scenesToLoad.length);
+  function orderRequest(form, fields, timeoutMs) {
+    var data = new URLSearchParams();
+    data.set('form', form);
+    Object.keys(fields).forEach(function (k) { data.set(k, fields[k]); });
+    var controller = window.AbortController ? new AbortController() : null;
+    var timer = controller ? window.setTimeout(function () { controller.abort(); }, timeoutMs || 90000) : 0;
+    return window.fetch((config().formEndpoint || '').trim(), { method: 'POST', body: data, redirect: 'follow', signal: controller ? controller.signal : undefined })
+      .then(function (res) {
+        window.clearTimeout(timer);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      }, function (err) { window.clearTimeout(timer); throw err; })
+      .then(function (result) {
+        if (!result || result.ok !== true) throw failure((result && result.error) || 'server');
+        return result;
+      });
+  }
+  function saveUser() {
+    try { window.localStorage.setItem('vm_user', JSON.stringify(session.user)); } catch (e) { /* storage blocked */ }
+  }
+  function ensureOrder() {
+    var u = session.user || {};
+    if (u.orderId && u.orderToken && !u.orderUsed) return Promise.resolve({ id: u.orderId, token: u.orderToken });
+    if (u.guest) return Promise.reject(failure('new_order'));
+    return signInToken().then(function (token) {
+      return orderRequest('order_start', { firebase_token: token, consent: 'yes', business: S.business.trim(), elapsed_ms: '9000' }, 30000);
+    }).then(function (r) { return { id: r.order_id, token: r.token }; });
+  }
+  function toBase64(blob) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () { resolve(String(reader.result).split(',')[1]); };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+  // Small files go as they are. Very large ones are reduced so the upload can finish.
+  function uploadable(blob) {
+    if (blob.size <= MAX_ORIGINAL || blob.type === 'image/svg+xml') return Promise.resolve(blob);
+    return loadBlobImage(blob).then(function (r) {
+      return new Promise(function (resolve) {
+        scaleImage(r.img, MAX_SIDE).toBlob(function (out) { URL.revokeObjectURL(r.url); resolve(out || blob); }, 'image/jpeg', 0.9);
       });
     });
-    if (S.logo) chain = chain.then(function () { logo = S.logo.canvas; });
-
-    chain.then(function () {
-      if (S.cancel) return null;
-      setJob('scenes');
-      if (!wantVoice) return null;
-      setJob('voice');
-      return generateVoiceover(function (n, total) { $('#render-status').textContent = 'Generating voiceover for scene ' + n + ' of ' + total + '…'; })
-        .then(function () { return Promise.all(S.scenes.filter(audioReady).map(sceneBuffer)); });
-    }).then(function () {
-      if (S.cancel) return;
-      record(canvas, W, H, images, logo, wantVoice ? audioCtx : null);
-    }).catch(function (e) {
-      var msg = String(e && e.message || '');
-      if (msg.indexOf('photo:') === 0) fail('We couldn\'t read ' + msg.slice(6) + '. Remove it or use a JPG or PNG.');
-      else if (e && e.code) fail(backendMessage(e, 'We couldn\'t create your voiceover. Please try again.'));
-      else fail('We couldn\'t make your video. Try 720p or fewer photos.');
-    });
   }
-
-  function record(canvas, W, H, images, logo, audioCtx) {
-    var scenes = timeline();
-    var total = S.length;
-    var draw = makeDrawer(canvas.getContext('2d'), W, H, images, logo, scenes, S.business.trim(), S.endLogo);
-    draw(0);
-
-    var mime = pickMime(!!audioCtx);
-    if (!mime) { fail('We couldn\'t make your video. Try 720p or fewer photos.'); return; }
-    var stream = canvas.captureStream(30);
-    var dest = null;
-    if (audioCtx) {
-      dest = audioCtx.createMediaStreamDestination();
-      dest.stream.getAudioTracks().forEach(function (t) { stream.addTrack(t); });
-    }
-    var recorder = new window.MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: S.res >= 1080 ? 9000000 : 5000000, audioBitsPerSecond: 128000 });
-    var chunks = [], sources = [], stopWatch = 0;
-    recorder.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
-
-    var elapsed = 0, last = window.performance.now(), startedAt = 0, visible = 0;
-    function onVisibility() {
-      if (recorder.state === 'recording' && document.hidden) { recorder.pause(); if (audioCtx) audioCtx.suspend(); }
-      else if (recorder.state === 'paused' && !document.hidden) { last = window.performance.now(); if (audioCtx) audioCtx.resume(); recorder.resume(); }
-    }
-    document.addEventListener('visibilitychange', onVisibility);
-    function cleanUp() {
-      window.clearTimeout(stopWatch);
-      document.removeEventListener('visibilitychange', onVisibility);
-      sources.forEach(function (src) { try { src.stop(); } catch (e) { /* already ended */ } });
-      stream.getTracks().forEach(function (t) { t.stop(); });
-    }
-    recorder.onstop = function () {
-      cleanUp();
-      if (S.cancel) return;
-      finish(new Blob(chunks, { type: mime.split(';')[0] }), mime, W, H, total, !!audioCtx);
-    };
-    recorder.onerror = function () { cleanUp(); fail('We couldn\'t make your video. Try 720p or fewer photos.'); };
-    recorder.start(500);
-    setJob('render');
-    setProgress(0.15, 'Rendering scene 1 of ' + scenes.length + '…');
-
-    if (audioCtx) {
-      startedAt = audioCtx.currentTime + 0.05;
-      scenes.forEach(function (item) {
-        if (!item.scene || !audioReady(item.scene)) return;
-        var src = audioCtx.createBufferSource();
-        src.buffer = item.scene.audio.buffer;
-        src.connect(dest);
-        var room = item.end - item.start;
-        src.start(startedAt + item.start + 0.15, 0, Math.max(0.1, room - 0.15 + FADE * 0.5));
-        sources.push(src);
-      });
-    }
-
-    // A timer keeps rendering steady; requestAnimationFrame stalls when the window isn't painted.
-    (function frame() {
-      if (S.cancel) { recorder.stop(); S.rendering = false; return; }
-      if (!document.hidden) {
-        var now = window.performance.now();
-        var step = Math.max(0, Math.min(now - last, 100)) / 1000;
-        visible += step;
-        last = now;
-        // With a voiceover, the audio clock leads so narration stays in step with the picture.
-        elapsed = audioCtx ? Math.max(0, audioCtx.currentTime - startedAt) : elapsed + step;
-        draw(Math.min(elapsed, total));
-        var n = 0; while (n < scenes.length - 1 && elapsed >= scenes[n].end) n++;
-        setProgress(0.15 + 0.8 * Math.min(1, elapsed / total), 'Rendering scene ' + (n + 1) + ' of ' + scenes.length + '…');
-        if (visible > total + 60) { S.cancel = true; recorder.stop(); fail('We couldn\'t make your video. Try 720p or fewer photos.'); return; }
-      }
-      if (elapsed < total) { window.setTimeout(frame, 33); return; }
-      setJob('final');
-      setProgress(0.97, 'Finishing your file…');
-      window.setTimeout(function () { recorder.stop(); }, 250);
-      stopWatch = window.setTimeout(function () { cleanUp(); fail('We couldn\'t make your video. Try 720p or fewer photos.'); }, 20000);
-    })();
-  }
-
-  $('#render-cancel').addEventListener('click', function () {
-    S.cancel = true;
-    S.rendering = false;
-    show('format');
-  });
-
-  function finish(blob, mime, W, H, total, hasVoice) {
-    S.rendering = false;
-    if (S.result) URL.revokeObjectURL(S.result.url);
-    var ext = mime.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
-    var url = URL.createObjectURL(blob);
-    if (S.result && S.result.thumbUrl) URL.revokeObjectURL(S.result.thumbUrl);
-    S.result = { url: url, stale: false, ext: ext, W: W, H: H, total: total, createdAt: Date.now(), id: null };
-    show('result');
-
-    var video = $('#result-video');
-    video.style.aspectRatio = W + ' / ' + H;
-    video.src = url;
-    var slug = (S.business.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'promo');
-    var link = $('#result-download');
-    link.href = url;
-    link.setAttribute('download', 'velmio-' + slug + '-' + S.size.replace(':', 'x') + '.' + ext);
-    $('#result-meta').textContent = W + '×' + H + ' · ' + Math.round(total) + ' seconds · ' + (blob.size / 1048576).toFixed(1) + ' MB · ' + ext.toUpperCase();
-    var note = $('#result-voice-note');
-    if (hasVoice) note.textContent = 'Your voiceover is included in this video.';
-    else if (S.voice.kind === 'browser') note.textContent = 'Press play to hear your voiceover. It plays from your device and isn\'t included in the download.';
-    else note.textContent = 'This video has no sound.';
-    if (ext === 'webm') note.textContent += ' This browser saves WebM. For Instagram and TikTok, use Chrome, Edge, or Safari to get an MP4.';
-    editorScene = S.scenes[0] ? S.scenes[0].id : null;
-    $('#editor-note').textContent = '';
-    renderEditor();
-    renderResultInfo();
-    storeVideo(blob, mime, ext, W, H, total, link.getAttribute('download'));
-    logEvent('rendered');
-    saveNow();
-    track('Video_Ready', { size: S.size, resolution: S.res, format: ext, length: S.length });
-  }
-
-  /* ---------- Editing after the render ---------- */
-  var editorScene = null;
-  function renderEditor() {
-    if (!S.result) return;
-    var line = $('#timeline');
-    line.textContent = '';
-    var items = timeline().filter(function (x) { return x.scene; });
-    items.forEach(function (x, i) {
-      var b = el('button', 'tl-item' + (x.scene.id === editorScene ? ' is-active' : ''));
-      b.type = 'button';
-      b.style.flexGrow = String(Math.max(1, x.end - x.start));
-      b.setAttribute('aria-label', 'Edit scene ' + (i + 1));
-      var img = el('img'); img.src = x.photo.url; img.alt = '';
-      b.appendChild(img);
-      var tag = el('span', 'tl-tag tl-time', (Math.round((x.end - x.start) * 10) / 10) + 's'); tag.setAttribute('translate', 'no');
-      b.appendChild(tag);
-      b.appendChild(el('span', 'tl-tag tl-num', String(i + 1)));
-      var cap = el('small', '', x.scene.text); cap.setAttribute('translate', 'no');
-      b.appendChild(cap);
-      b.addEventListener('click', function () { editorScene = x.scene.id; renderEditor(); });
-      line.appendChild(b);
+  function extensionFor(type) { return { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/svg+xml': 'svg' }[type] || 'jpg'; }
+  function orderSummary(o) {
+    return JSON.stringify({
+      title: projectTitle(), business: S.business.trim(), idea: S.brief, cta: S.cta, tone: S.tone, language: S.scriptLang, platform: S.platform,
+      audioMode: S.audioMode, music: S.music, sfx: S.sfx, voice: S.voice.kind === 'none' ? '' : S.voice.name, length: S.length, size: S.size, resolution: o.w + 'x' + o.h, logo: !!S.logo,
+      scenes: timeline().filter(function (x) { return x.scene; }).map(function (x) {
+        return { text: x.scene.text, narration: S.audioMode === 'text' ? '' : narration(x.scene), seconds: (Math.round((x.end - x.start) * 10) / 10) };
+      })
     });
-    var at = -1;
-    S.scenes.forEach(function (s, i) { if (s.id === editorScene) at = i; });
-    if (at < 0 && S.scenes.length) { at = 0; editorScene = S.scenes[0].id; }
-    var scene = S.scenes[at];
-    var box = $('#timeline-editor');
-    box.textContent = '';
-    $('#end-logo').checked = S.endLogo;
-    $('#end-logo').closest('.check').hidden = !S.logo;
-    if (!scene) return;
-
-    var capWrap = el('div');
-    var capLabel = el('label', '', 'Caption for scene ' + (at + 1)); capLabel.setAttribute('for', 'edit-caption');
-    var cap = el('input'); cap.id = 'edit-caption'; cap.type = 'text'; cap.maxLength = MAX_LINE; cap.value = scene.text;
-    cap.addEventListener('input', function () { scene.text = cap.value; scene.edited = true; changed(); });
-    capWrap.appendChild(capLabel); capWrap.appendChild(cap);
-    box.appendChild(capWrap);
-
-    var row = el('div', 'timeline-row');
-    var durWrap = el('div');
-    var durLabel = el('label', '', 'Seconds'); durLabel.setAttribute('for', 'edit-seconds');
-    var dur = el('input'); dur.id = 'edit-seconds'; dur.type = 'number'; dur.min = '1'; dur.max = String(available()); dur.step = '0.1'; dur.value = (Math.round(secondsOf(scene) * 10) / 10).toFixed(1);
-    dur.addEventListener('change', function () { setSceneSeconds(scene, dur.value); scene.edited = true; renderEditor(); changed(); });
-    durWrap.appendChild(durLabel); durWrap.appendChild(dur);
-    row.appendChild(durWrap);
-    row.appendChild(selectField('Transition', TRANSITIONS, scene.transition, function (v) { scene.transition = v; scene.edited = true; changed(); }));
-    row.appendChild(selectField('Movement', MOVES, scene.motion, function (v) { scene.motion = v; scene.edited = true; changed(); }));
-    box.appendChild(row);
-
-    var tools = el('div', 'timeline-tools');
-    [['↑', 'Move scene earlier', at - 1, at === 0], ['↓', 'Move scene later', at + 1, at === S.scenes.length - 1]].forEach(function (t) {
-      var b = el('button', 'icon-btn', t[0]);
-      b.type = 'button'; b.setAttribute('aria-label', t[1] + ' ' + (at + 1)); b.disabled = t[3];
-      b.addEventListener('click', function () { moveScene(at, t[2]); });
-      tools.appendChild(b);
-    });
-    var replace = el('label', 'btn-soft is-small');
-    replace.tabIndex = 0;
-    var file = el('input', 'visually-hidden'); file.type = 'file'; file.accept = 'image/jpeg,image/png,image/webp';
-    file.addEventListener('change', function () {
-      var f = file.files[0];
-      if (!f) return;
-      if (!/^image\/(jpeg|png|webp)$/.test(f.type)) { error(T(f.name + ' isn\'t a JPG, PNG, or WebP.')); return; }
-      if (f.size > MAX_BYTES) { error(T(f.name + ' is larger than 20 MB.')); return; }
-      makePhoto(f, f.name).then(function (photo) {
-        URL.revokeObjectURL(scene.photo.url);
-        scene.photo = photo;
-        error('');
-        renderPhotos(); renderEditor(); changed();
-      }, function () { error(T('We couldn\'t read ' + f.name + '. Remove it or use a JPG or PNG.')); });
-    });
-    replace.appendChild(file);
-    replace.appendChild(el('span', '', 'Replace photo'));
-    tools.appendChild(replace);
-    box.appendChild(tools);
-  }
-  $('#end-logo').addEventListener('change', function () { S.endLogo = this.checked; changed(); });
-  $('#result-save').addEventListener('click', function () { flashSaved(this); });
-  $('#result-render').addEventListener('click', function () { $('#result-video').pause(); generate(); });
-  $('#result-download').addEventListener('click', function () { track('Video_Download', { size: S.size }); logEvent('downloaded'); });
-  $('#result-edit').addEventListener('click', function () { $('#result-video').pause(); show('script'); });
-  $('#result-new').addEventListener('click', function () {
-    confirmBox('Start a new video? Your current project will be cleared.', 'Start new').then(function (go) {
-      if (!go) return;
-      $('#result-video').pause();
-      S.scenes.forEach(function (s) { URL.revokeObjectURL(s.photo.url); });
-      if (S.result) URL.revokeObjectURL(S.result.url);
-      S.scenes = []; S.result = null; S.source = ''; S.brief = ''; S.title = ''; S.activeId = null; S.composerOpen = true; S.saveState = 'empty';
-      applyLogo(null);
-      fillFields();
-      renderPhotos();
-      writeProject(null).catch(function () {});
-      show('photos');
-    });
-  });
-
-  /* ---------- Result details and the on-device library ---------- */
-  var MODE_NAMES = { text: 'Text only', voice: 'Voiceover only', text_voice: 'Text + Voiceover' };
-  function projectTitle() { return (S.title || S.business || '').trim() || T('Untitled project'); }
-  function logEvent(type) { if (window.VelmioLibrary) window.VelmioLibrary.log(type, projectTitle()); }
-  function renderResultInfo() {
-    if (!S.result) return;
-    $('#r-title').textContent = projectTitle();
-    $('#r-created').textContent = new Date(S.result.createdAt).toLocaleString(LANG, { dateStyle: 'medium', timeStyle: 'short' });
-    $('#r-duration').textContent = Math.round(S.result.total) + ' sec';
-    $('#r-aspect').textContent = sizeInfo().label + ' ' + S.size;
-    $('#r-resolution').textContent = S.result.W + '×' + S.result.H;
-    $('#r-mode').textContent = MODE_NAMES[S.audioMode];
-    $('#r-status').textContent = 'Completed';
   }
   function makeThumb(W, H) {
     return new Promise(function (resolve) {
@@ -1675,43 +1442,128 @@
       c.toBlob(resolve, 'image/jpeg', 0.8);
     });
   }
-  function storeVideo(blob, mime, ext, W, H, total, filename) {
-    if (!window.VelmioLibrary) return;
-    var made = S.result;
-    makeThumb(W, H).then(function (thumb) {
-      return window.VelmioLibrary.addVideo({
-        title: projectTitle(), projectTitle: projectTitle(), blob: blob, mime: mime, ext: ext, thumb: thumb, filename: filename,
-        duration: Math.round(total), aspect: S.size, resolution: W + '×' + H, mode: S.audioMode, createdAt: made.createdAt, status: 'completed'
-      });
-    }).then(function (saved) {
-      made.id = saved.id;
-    }).catch(function () {
-      $('#editor-note').textContent = 'We couldn\'t save this video to My Videos. Download it to keep it.';
+  function orderFailed(err) {
+    if (err && err.code === 'new_order') fail('This order was already sent. Start a new order to send another video.');
+    else if (err && err.code === 'no_plan') fail(NO_PLAN);
+    else if (err && err.code === 'plan_limit') fail(PLAN_USED);
+    else if (err && err.code === 'closed') fail('This order was already sent. Start a new order to send another video.');
+    else if (err && (err.code === 'auth' || err.code === 'order')) fail('Your sign-in has expired. Please log out and log in again.');
+    else if (err && err.code === 'rate_limited') fail('You\'ve reached the limit for now. Please try again later.');
+    else if (err && err.code === 'validation') fail('Please check your details and try again.');
+    else fail('We couldn\'t reach our server. Check your connection and try again.');
+  }
+  function generate() {
+    if (S.rendering) return;
+    var blocker = firstInvalid(STEPS.length);
+    if (blocker) { var why = validate(blocker); show(blocker); error(why); return; }
+    if (!(config().formEndpoint || '').trim()) { error('Orders can\'t be sent right now. Please try again a little later.'); return; }
+
+    S.rendering = true; S.cancel = false;
+    renderJobSteps();
+    show('generating');
+    setJob('photos');
+    setProgress(0, 'Preparing your photos…');
+    track('Generate_Start', { size: S.size, resolution: S.res, length: S.length });
+
+    var size = outputSize();
+    var files = S.scenes.map(function (s, i) { return { blob: s.photo.blob, base: pad(i + 1) + '-photo' }; });
+    if (S.logo) files.push({ blob: S.logo.blob, base: 'logo' });
+    var steps = files.length + 1, orderInfo = null;
+
+    ensureOrder().then(function (order) {
+      orderInfo = order;
+      setJob('upload');
+      return files.reduce(function (chain, f, i) {
+        return chain.then(function () {
+          if (S.cancel) throw failure('cancelled');
+          $('#render-status').textContent = 'Uploading photo ' + (i + 1) + ' of ' + files.length + '…';
+          return uploadable(f.blob).then(function (blob) {
+            return toBase64(blob).then(function (data) {
+              return orderRequest('order_file', { order_id: order.id, token: order.token, name: f.base + '.' + extensionFor(blob.type), mime: blob.type, data: data }, 120000);
+            });
+          }).then(function () { setProgress((i + 1) / steps); });
+        });
+      }, Promise.resolve());
+    }).then(function () {
+      if (S.cancel) throw failure('cancelled');
+      setJob('script');
+      $('#render-status').textContent = 'Sending your script…';
+      return orderRequest('order_submit', { order_id: orderInfo.id, token: orderInfo.token, project: orderSummary(size) }, 30000);
+    }).then(function () {
+      setProgress(1, 'Order received');
+      setJob('done');
+      finishOrder(orderInfo, size);
+    }).catch(function (err) {
+      if (err && err.code === 'cancelled') return;
+      orderFailed(err);
     });
   }
-  $('#result-rename').addEventListener('click', function () {
-    window.VelmioUI.ask({ message: 'Project name', value: projectTitle(), confirm: 'Save' }).then(function (name) {
-      if (!name) return;
-      S.title = name;
-      renderResultInfo();
-      if (S.result && S.result.id) window.VelmioLibrary.update(S.result.id, { title: name, projectTitle: name });
-      saveNow();
-    });
+  $('#render-cancel').addEventListener('click', function () {
+    S.cancel = true;
+    S.rendering = false;
+    show('format');
   });
-  $('#result-delete').addEventListener('click', function () {
-    window.VelmioUI.ask({ message: 'Delete this video? This can\'t be undone.', confirm: 'Delete' }).then(function (yes) {
-      if (!yes || !S.result) return;
-      $('#result-video').pause();
-      if (S.result.id) window.VelmioLibrary.remove(S.result.id);
-      URL.revokeObjectURL(S.result.url);
-      S.result = null;
-      show('format');
+  function finishOrder(order, size) {
+    S.rendering = false;
+    var email = (session.user && session.user.email) || '';
+    S.result = { orderId: order.id };
+    if (session.user) { session.user.orderUsed = true; saveUser(); }
+    show('result');
+    $('#result-email').textContent = 'We\'ll email ' + email + ' when your video is ready.';
+    $('#r-order').textContent = order.id;
+    $('#r-title').textContent = projectTitle();
+    $('#r-duration').textContent = S.length + ' sec';
+    $('#r-aspect').textContent = sizeInfo().label + ' ' + S.size;
+    $('#r-resolution').textContent = size.w + '×' + size.h;
+    $('#r-mode').textContent = MODE_NAMES[S.audioMode];
+    $('#r-music').textContent = S.music ? 'Yes' : 'No';
+    $('#r-sfx').textContent = S.sfx ? 'Yes' : 'No';
+    if (window.VelmioLibrary) {
+      makeThumb(size.w, size.h).then(function (thumb) {
+        return window.VelmioLibrary.addVideo({
+          title: projectTitle(), projectTitle: projectTitle(), thumb: thumb, duration: S.length, aspect: S.size,
+          resolution: size.w + '×' + size.h, mode: S.audioMode, createdAt: Date.now(), status: 'processing', orderId: order.id, orderToken: order.token
+        });
+      }).catch(function () { /* the order itself is already with the team */ });
+    }
+    logEvent('order');
+    track('Video_Ready', { size: S.size, resolution: S.res, length: S.length });
+    saveNow();
+  }
+  // When the owner marks the order Done in the Sheet, this screen catches up.
+  function checkOrderReady() {
+    if (!S.result || S.step !== 'result' || !window.VelmioLibrary) return;
+    var id = S.result.orderId;
+    window.VelmioLibrary.syncOrders().then(function () { return window.VelmioLibrary.videos(); }).then(function (rows) {
+      var video = rows.filter(function (v) { return v.orderId === id; })[0];
+      if (!video || video.status !== 'completed' || !/^https:\/\//.test(video.videoLink || '') || !S.result || S.result.orderId !== id) return;
+      $('#result-title').textContent = 'Your video is ready.';
+      $('#result-sub').hidden = true;
+      $('#r-status').textContent = 'Completed';
+      $('#result-watch').href = video.videoLink;
+      $('#result-watch').hidden = false;
+    });
+  }
+  window.addEventListener('focus', checkOrderReady);
+  $('#result-new').addEventListener('click', function () {
+    confirmBox('Start a new video? Your current project will be cleared.', 'Start new').then(function (go) {
+      if (!go) return;
+      S.scenes.forEach(function (s) { URL.revokeObjectURL(s.photo.url); });
+      S.scenes = []; S.result = null; S.source = ''; S.brief = ''; S.title = ''; S.activeId = null; S.composerOpen = true; S.saveState = 'empty';
+      applyLogo(null);
+      fillFields();
+      renderPhotos();
+      writeProject(null).catch(function () {}).then(function () {
+        if (session.user && session.user.guest) window.location.href = root.getAttribute('data-signup') + '?mode=login';
+        else show('photos');
+      });
     });
   });
 
   /* ---------- Start ---------- */
   function applyPreferences() {
     var p = {};
+    if (session.user && session.user.business) S.business = session.user.business;
     try { p = JSON.parse(window.localStorage.getItem('vm_prefs')) || {}; } catch (e) { /* storage blocked */ }
     if (SIZES.some(function (s) { return s.id === p.size; })) S.size = p.size;
     if (LENGTHS.some(function (l) { return l.id === p.length; })) S.length = p.length;
@@ -1720,7 +1572,7 @@
   }
   function restore(saved) {
     if (!saved || saved.v !== 2) { applyPreferences(); return Promise.resolve(); }
-    ['business', 'brief', 'cta', 'tone', 'scriptLang', 'platform', 'voice', 'size', 'res', 'length', 'endLogo', 'source', 'nextId', 'audioMode', 'lastVoice', 'voiceRate', 'voiceVolume', 'title'].forEach(function (k) {
+    ['business', 'brief', 'cta', 'tone', 'scriptLang', 'platform', 'voice', 'size', 'res', 'length', 'endLogo', 'source', 'nextId', 'audioMode', 'lastVoice', 'voiceRate', 'voiceVolume', 'title', 'music', 'sfx'].forEach(function (k) {
       if (saved[k] !== undefined) S[k] = saved[k];
     });
     if (!saved.audioMode) S.audioMode = S.voice.kind === 'none' ? 'text' : 'text_voice';
@@ -1739,6 +1591,14 @@
       S.saveState = 'saved';
       return saved.logo ? makeLogo(saved.logo.blob, saved.logo.name).then(applyLogo, function () {}) : null;
     }).then(function () { return saved.step; });
+  }
+
+  if (session.user && !session.user.guest) {
+    window.VelmioLibrary.plan().then(function (p) {
+      if (p.remaining > 0) return;
+      $('#plan-banner p').textContent = p.plan ? PLAN_USED : NO_PLAN;
+      $('#plan-banner').hidden = false;
+    }).catch(function () { /* the server still checks when the order is sent */ });
   }
 
   readProject().then(restore).then(function (step) {

@@ -199,8 +199,16 @@
 .result-dl { width: 100%; }
 .editor-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 
+.job-single { display: block; width: min(460px, 100%); margin-inline: auto; }
+.render-percent { font-size: 3rem; font-weight: 650; letter-spacing: -.03em; line-height: 1.1; text-align: center; font-variant-numeric: tabular-nums; }
+.job-single .job-steps { margin-top: 16px; }
+.job-single .studio-link { display: block; margin: 10px auto 0; }
+.order-mark { display: grid; place-items: center; width: 60px; height: 60px; margin: 0 auto 12px; border-radius: 50%; background: var(--soft); color: var(--lavender); font-size: 1.6rem; font-weight: 700; }
+.order-done .order-facts { width: min(460px, 100%); margin: 0 auto; padding: 4px 16px; border: 1px solid var(--glass-line); border-radius: 14px; background: var(--card); text-align: start; }
+.order-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 18px; }
+
 /* Audio step */
-.mode-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.mode-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .mode { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; padding: 14px; border: 1px solid var(--glass-line); border-radius: 14px; background: var(--card); color: var(--ivory); font: inherit; text-align: start; cursor: pointer; transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease, transform .15s ease; }
 .mode .ic { width: 22px; height: 22px; margin-bottom: 4px; color: var(--lavender); }
 .mode strong { font-size: .95rem; font-weight: 600; line-height: 1.25; }
@@ -220,7 +228,10 @@
 .audio-sec { margin-top: 22px; padding-top: 4px; border-top: 1px solid var(--glass-line); }
 .audio-sec header { display: flex; align-items: center; gap: 8px; min-height: 48px; }
 .audio-sec header h2 { margin: 0; }
-.audio-sec header .switch { margin-inline-start: auto; }
+.yesno { display: inline-flex; gap: 2px; margin-inline-start: auto; padding: 3px; border: 1px solid var(--glass-line); border-radius: 999px; background: var(--card); }
+.yesno button { min-width: 58px; min-height: 38px; padding: 0 14px; border: 0; border-radius: 999px; background: none; color: var(--muted); font: 600 .875rem/1 var(--body); cursor: pointer; }
+.yesno button.is-on { background: var(--soft); color: var(--lavender); box-shadow: 0 0 0 1px var(--lavender) inset; }
+#plan-banner { margin: 0 0 16px; }
 .chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .chips button { display: flex; align-items: center; gap: 7px; min-height: 44px; padding: 0 10px; border: 1px solid var(--glass-line); border-radius: 10px; background: var(--card); color: var(--muted); font: 500 .84rem/1.2 var(--body); text-align: start; }
 .chips .ic { width: 13px; height: 13px; }
@@ -235,7 +246,7 @@
   #narrator .voice-group { grid-column: 1 / -1; }
 }
 @media (min-width: 720px) {
-  .mode-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .mode-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 .editor { margin-top: 26px; padding: 16px; border: 1px solid var(--glass-line); border-radius: 16px; background: var(--card); text-align: start; }
 .editor h2 { margin: 0 0 12px; }

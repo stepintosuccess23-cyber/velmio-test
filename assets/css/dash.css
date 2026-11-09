@@ -1,4 +1,4 @@
-/* Velmio dashboard: shell, overview, library, projects, history, brand kit and settings. */
+/* Velmio dashboard: shell, overview, library, projects, history and settings. */
 .page-app { background: var(--bg); }
 .shell { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 100vh; min-height: 100dvh; }
 .side { position: fixed; z-index: 45; top: 0; bottom: 0; inset-inline-start: 0; display: flex; flex-direction: column; width: 256px; padding: 14px 12px; background: var(--sidebar); border-inline-end: 1px solid var(--glass-line); transform: translateX(-105%); transition: transform .2s ease, width .2s ease; overflow-y: auto; }
@@ -121,11 +121,18 @@
 .motion .tab-panel:not([hidden]) { animation: tab-in .16s ease-out; }
 @keyframes tab-in { from { opacity: 0; transform: translateY(3px); } }
 .avatar.is-large { width: 64px; height: 64px; font-size: 1.3rem; }
-.brand-layout { display: grid; gap: 14px; }
-.brand-preview { position: relative; display: grid; align-content: end; gap: 8px; min-height: 280px; padding: 22px; border-radius: var(--r); color: #fff; overflow: hidden; }
-.brand-preview strong { font-size: 1.5rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.15; overflow-wrap: anywhere; }
-.brand-preview span { justify-self: start; padding: 7px 16px; border-radius: 999px; background: rgba(255, 255, 255, .9); color: #17152B; font-size: .85rem; font-weight: 600; overflow-wrap: anywhere; }
-.brand-note { display: flex; gap: 8px; margin-bottom: 14px; padding: 10px 14px; border-radius: 12px; background: var(--glass); color: var(--muted); font-size: .875rem; line-height: 1.45; }
+.bill-test { margin-top: 10px; padding: 10px 14px; border-radius: 12px; background: var(--glass); color: var(--muted); font-size: .875rem; line-height: 1.45; }
+.bill-meter { height: 6px; margin: 2px 0 8px; border-radius: 999px; background: var(--glass-line); overflow: hidden; }
+.bill-meter i { display: block; width: 0; height: 100%; border-radius: 999px; background: var(--lavender); }
+.bill-error { margin-top: 10px; color: var(--error); font-size: .875rem; }
+.bill-plans { display: grid; gap: 12px; margin-top: 16px; }
+.bill-plan { display: flex; flex-direction: column; gap: 4px; padding: 16px; border: 1px solid var(--glass-line); border-radius: 14px; }
+.bill-plan.is-current { border-color: var(--lavender); background: var(--soft); }
+.bill-plan h3 { font-size: 1rem; font-weight: 600; }
+.bill-price { font-size: 1.5rem; font-weight: 700; letter-spacing: -.02em; }
+.bill-price small { color: var(--muted); font-size: .85rem; font-weight: 500; letter-spacing: 0; }
+.bill-videos { margin-bottom: 12px; color: var(--muted); font-size: .9rem; }
+.bill-plan .ui-btn { width: 100%; margin-top: auto; }
 .color-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .form-grid input[type="color"] { padding: 4px; cursor: pointer; }
 .player-dialog { width: min(760px, calc(100vw - 24px)); padding: 16px; border: 1px solid var(--glass-line); border-radius: 16px; background: var(--bg-2); color: var(--ivory); box-shadow: var(--shadow); }
@@ -166,8 +173,7 @@
   .settings { grid-template-columns: 200px minmax(0, 1fr); align-items: start; }
   .tabs { flex-direction: column; overflow: visible; }
   .tabs button { width: 100%; }
-  .brand-layout { grid-template-columns: minmax(0, 1fr) 320px; align-items: start; }
-  .brand-preview { position: sticky; top: 84px; }
+  .bill-plans { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (min-width: 1100px) {
   .shell { grid-template-columns: 240px minmax(0, 1fr); }
