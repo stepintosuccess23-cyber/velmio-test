@@ -335,7 +335,17 @@
     };
     if (top) new IntersectionObserver(function (e) { topVisible = e[e.length - 1].isIntersecting; updateSticky(); }).observe(top);
     new IntersectionObserver(function (e) { orderVisible = e[e.length - 1].isIntersecting; updateSticky(); }).observe($('#start'));
-    new IntersectionObserver(function (e) { heroVisible = e[e.length - 1].isIntersecting; updateSticky(); }).observe(hero);
+    var onScreen = [];
+    var buttons = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        var i = onScreen.indexOf(e.target);
+        if (e.isIntersecting && i === -1) onScreen.push(e.target);
+        if (!e.isIntersecting && i !== -1) onScreen.splice(i, 1);
+      });
+      heroVisible = onScreen.length > 0;
+      updateSticky();
+    });
+    $$('.vsl-cta, .plans').forEach(function (el) { buttons.observe(el); });
     new IntersectionObserver(function (e) { leadVisible = e[e.length - 1].isIntersecting; updateSticky(); }).observe(lead);
   }
 
@@ -382,6 +392,75 @@
     return current;
   }
 
+  /* ---------- Mockup videos play only while on screen ---------- */
+  function initInviewVideos() {
+    var videos = $$('video[data-inview-play]');
+    var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!videos.length || still || !('IntersectionObserver' in window)) return;
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        var video = e.target;
+        if (e.isIntersecting) {
+          video.preload = 'auto';
+          var playing = video.play();
+          if (playing && playing.catch) playing.catch(function () {});
+        } else {
+          video.pause();
+        }
+      });
+    }, { threshold: 0.35 });
+    videos.forEach(function (video) { io.observe(video); });
+  }
+
+  /* ---------- Launch offer: a limited number of real spots, then regular prices ---------- */
+  var PRICES = { single: 120, double: 199 };
+  var offerOver = function () {};
+
+  function initOffer() {
+    var box = $('#offer');
+    if (!box) return;
+    var spots = Number(box.getAttribute('data-spots'));
+    var regular = { single: Number(box.getAttribute('data-regular-single')), double: Number(box.getAttribute('data-regular-double')) };
+    if (!spots || !regular.single || !regular.double) return;
+    var money = function (n) { return '$' + String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); };
+
+    // Every price on the page switches to the regular price.
+    offerOver = function () {
+      if (PRICES.single === regular.single) return;
+      var swap = [[money(PRICES.double), money(regular.double)], [money(PRICES.single), money(regular.single)]];
+      var under = box.getAttribute('data-under'), regularUnder = box.getAttribute('data-regular-under');
+      if (under && regularUnder) swap.push(['$' + under, '$' + regularUnder]);
+      document.documentElement.classList.add('offer-over');
+      $$('[data-price-swap]').forEach(function (el) {
+        var walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), node;
+        while ((node = walk.nextNode())) {
+          var text = node.nodeValue;
+          swap.forEach(function (pair) { text = text.split(pair[0]).join(pair[1]); });
+          if (text !== node.nodeValue) node.nodeValue = text;
+        }
+      });
+      PRICES.single = regular.single;
+      PRICES.double = regular.double;
+    };
+
+    // The number comes from the paid orders in the Sheet. Without it, no number is shown.
+    var endpoint = ((window.SITE_CONFIG || {}).formEndpoint || '').trim();
+    if (!endpoint || !window.fetch || !window.URLSearchParams) return;
+    var data = new URLSearchParams();
+    data.set('form', 'offer_status');
+    window.fetch(endpoint, { method: 'POST', body: data, redirect: 'follow' })
+      .then(function (r) { return r.json(); })
+      .then(function (status) {
+        if (!status || !status.ok || typeof status.left !== 'number') return;
+        var left = Math.max(0, Math.min(spots, Math.floor(status.left)));
+        if (!left) { offerOver(); return; }
+        $('[data-spots-left]', box).textContent = String(left);
+        $('[data-spots-fill]', box).style.width = Math.round(left / spots * 100) + '%';
+        $('[data-spots-box]', box).hidden = false;
+      })
+      .catch(function () {});
+  }
+
   /* ---------- Order: details and files, package, payment ---------- */
   var pageLoadedAt = Date.now();
 
@@ -389,9 +468,9 @@
     var form = $('#order-form');
     if (!form) return;
     var MAX_FILE = 10 * 1024 * 1024;
-    var PRICES = { single: 120, double: 199 };
-    var progress = $('#ob-progress'), review = $('#ob-review'), payment = $('#ob-payment'), done = $('#ob-done');
+    var progress = $('#ob-progress'), payment = $('#ob-payment'), filesStep = $('#ob-files'), filesForm = $('#ob-files-form'), done = $('#ob-done');
     var submit = $('#ob-submit'), formError = $('#ob-error'), payButton = $('#ob-pay'), payError = $('#ob-pay-error');
+    var filesSubmit = $('#ob-files-submit'), filesError = $('#ob-files-error');
     var label = submit.textContent, payLabel = payButton.textContent;
     var order = null, busy = false, analysis = null, needDetails = false;
     var EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/svg+xml': 'svg' };
@@ -492,9 +571,7 @@
       if (order) return Promise.resolve();
       var data = new URLSearchParams();
       data.set('form', 'order_start');
-      [['full_name', 'o-name'], ['business', 'o-business'], ['website', 'o-website'], ['category', 'o-category'], ['email', 'o-email'], ['phone', 'o-phone'],
-       ['description', 'o-description'], ['instagram', 'o-instagram'], ['facebook', 'o-facebook'], ['language', 'o-language'], ['audience', 'o-audience'], ['objective', 'o-objective']
-      ].forEach(function (pair) { data.set(pair[0], value(pair[1])); });
+      [['full_name', 'o-name'], ['business', 'o-business'], ['website', 'o-website'], ['category', 'o-category'], ['email', 'o-email'], ['phone', 'o-phone']].forEach(function (pair) { data.set(pair[0], value(pair[1])); });
       data.set('company', $('#o-company').value);
       data.set('consent', 'yes');
       ATTR_FIELDS.forEach(function (k) { if (attribution[k]) data.set(k, attribution[k]); });
@@ -503,6 +580,7 @@
       return send(data).then(function (result) {
         if (!result || result.ok !== true || !result.order_id) throw failure(problem(result));
         order = { id: result.order_id, token: result.token, email: value('o-email').toLowerCase(), ai: !!result.ai, live: !!result.live };
+        if (result.launch === false) offerOver();
         if (result.lead_created) track('Lead', { content_name: 'order_form' }, { once: true, eventId: result.order_id });
       });
     }
@@ -548,20 +626,11 @@
         list.appendChild(li);
       });
     }
-    function showReview() {
-      form.hidden = true;
-      progress.hidden = true;
-      review.hidden = false;
-      busy = false;
-      setStep(1);
-      fillAnalysis();
-      showCard();
-    }
     function showDone() {
       form.hidden = true;
       progress.hidden = true;
-      review.hidden = true;
       payment.hidden = true;
+      filesStep.hidden = true;
       done.hidden = false;
       setStep(3);
       $('#ob-order-id').textContent = order.id;
@@ -603,12 +672,6 @@
         showError(rule, ok ? '' : rule.msg);
         if (!ok && !firstBad) firstBad = input;
       });
-      uploads.forEach(function (item) {
-        var message = filesProblem(item), error = document.getElementById(item.id + '-error');
-        error.textContent = message;
-        error.hidden = !message;
-        if (message && !firstBad) firstBad = document.getElementById(item.id);
-      });
       if (firstBad) { firstBad.focus(); return; }
 
       busy = true;
@@ -616,7 +679,7 @@
       form.hidden = true;
       progress.hidden = false;
       setProgress(0, 'Saving your details…');
-      startOrder().then(uploadFiles).then(analyze).then(showReview).catch(function (err) {
+      startOrder().then(analyze).then(showPayment).catch(function (err) {
         busy = false;
         submit.disabled = false;
         submit.textContent = label;
@@ -676,27 +739,79 @@
     });
     $('#c-cvc').addEventListener('input', function () { this.value = this.value.replace(/\D/g, '').slice(0, 4); });
 
-    function showPayment() {
+    function updatePlan() {
       order.plan = selectedPlan();
-      review.hidden = true;
-      payment.hidden = false;
-      setStep(2);
       $$('[data-sum-plan]').forEach(function (n) { n.hidden = n.getAttribute('data-sum-plan') !== order.plan; });
-      payLabel = 'Pay $' + PRICES[order.plan];
-      payButton.textContent = payLabel;
+      payLabel = 'Pay $' + PRICES[order.plan].toLocaleString('en-US');
+      if (!busy) payButton.textContent = payLabel;
+    }
+    // Step 2: package and payment together.
+    function showPayment() {
+      form.hidden = true;
+      progress.hidden = true;
+      payment.hidden = false;
+      busy = false;
+      setStep(1);
+      fillAnalysis();
+      updatePlan();
       if (!$('#b-name').value) $('#b-name').value = value('o-name');
       track('InitiateCheckout', { value: PRICES[order.plan], currency: 'USD', content_name: order.plan }, { once: true, key: order.id });
       showCard();
     }
-    $('#ob-to-pay').addEventListener('click', function () { if (order) showPayment(); });
-    $('#ob-back').addEventListener('click', function () {
-      if (busy) return;
-      clearCard();
-      payError.hidden = true;
+    $$('input[name="ob-plan"]').forEach(function (radio) {
+      radio.addEventListener('change', function () { if (order) updatePlan(); });
+    });
+
+    // Step 3, after paying: logo, images and more details. All optional.
+    function showFiles() {
       payment.hidden = true;
-      review.hidden = false;
-      setStep(1);
+      progress.hidden = true;
+      filesStep.hidden = false;
+      setStep(2);
       showCard();
+    }
+    var DETAIL_FIELDS = [['description', 'o-description'], ['instagram', 'o-instagram'], ['facebook', 'o-facebook'], ['language', 'o-language'], ['audience', 'o-audience'], ['objective', 'o-objective']];
+    function detailsGiven() {
+      return value('o-language') !== 'English' || DETAIL_FIELDS.some(function (pair) { return pair[1] !== 'o-language' && value(pair[1]); });
+    }
+    function sendDetails() {
+      var data = orderFields('order_details');
+      DETAIL_FIELDS.forEach(function (pair) { data.set(pair[0], value(pair[1])); });
+      return send(data).then(function (result) { if (!result || result.ok !== true) throw failure(problem(result)); });
+    }
+    filesForm.addEventListener('submit', function (event) {
+      event.preventDefault();
+      if (busy || !order) return;
+      filesError.hidden = true;
+      var firstBad = null;
+      uploads.forEach(function (item) {
+        var message = filesProblem(item), error = document.getElementById(item.id + '-error');
+        error.textContent = message;
+        error.hidden = !message;
+        if (message && !firstBad) firstBad = document.getElementById(item.id);
+      });
+      if (firstBad) { firstBad.focus(); return; }
+      if (!chosenFiles().length && !detailsGiven()) { showDone(); return; }
+
+      busy = true;
+      filesSubmit.disabled = true;
+      filesStep.hidden = true;
+      progress.hidden = false;
+      setProgress(0, 'Saving your details…');
+      uploadFiles().then(function () {
+        setProgress(1, 'Saving your details…');
+        return sendDetails();
+      }).then(function () {
+        busy = false;
+        showDone();
+      }).catch(function (err) {
+        busy = false;
+        filesSubmit.disabled = false;
+        progress.hidden = true;
+        filesStep.hidden = false;
+        filesError.textContent = err && err.shown ? err.shown : offline(err);
+        filesError.hidden = false;
+      });
     });
 
     payButton.addEventListener('click', function () {
@@ -737,7 +852,7 @@
           }
           busy = false;
           clearCard();
-          showDone();
+          showFiles();
         }, function (err) { payFailed(offline(err)); });
       }, function (err) { payFailed(paymentMessage(err && err.code)); });
     });
@@ -876,10 +991,12 @@
   initNav();
   initReveal();
   initPlayers();
+  initInviewVideos();
   initSticky();
   initCTAs();
   initViewEvents();
   var firstTouch = captureAttribution();
+  initOffer();
   initOrderForm(firstTouch);
   initContactForm();
   initConsent();
