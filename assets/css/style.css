@@ -226,6 +226,8 @@ a { color: inherit; }
 .gallery::-webkit-scrollbar { display: none; }
 .sample-wide { max-width: 900px; margin: 40px auto 0; }
 #examples .show-head h2 { max-width: 14em; }
+#main > #examples:first-child { padding-top: calc(env(safe-area-inset-top, 0px) + 104px); }
+@media (min-width: 768px) { #main > #examples:first-child { padding-top: 136px; } }
 .show-head { display: flex; flex-direction: column; align-items: center; gap: 14px; max-width: 880px; margin-inline: auto; text-align: center; }
 .show-points { display: grid; gap: 12px; max-width: 40em; margin-top: 8px; text-align: start; }
 .show-points li { position: relative; padding-inline-start: 34px; color: var(--lede); font-size: clamp(1rem, .94rem + .3vw, 1.15rem); line-height: 1.5; text-shadow: 0 1px 14px rgba(var(--bg-rgb), .9); }

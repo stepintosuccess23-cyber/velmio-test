@@ -327,11 +327,13 @@
     var hero = $('#hero-cta');
     var lead = $('.final');
     if (!bar || !hero || !lead || !('IntersectionObserver' in window)) return;
-    var heroVisible = true, leadVisible = false, orderVisible = false;
+    var top = $('#examples .show-head');
+    var heroVisible = true, topVisible = !!top, leadVisible = false, orderVisible = false;
     updateSticky = function () {
       var banner = $('#cookie-banner');
-      bar.hidden = heroVisible || leadVisible || orderVisible || (banner && !banner.hidden);
+      bar.hidden = heroVisible || topVisible || leadVisible || orderVisible || (banner && !banner.hidden);
     };
+    if (top) new IntersectionObserver(function (e) { topVisible = e[e.length - 1].isIntersecting; updateSticky(); }).observe(top);
     new IntersectionObserver(function (e) { orderVisible = e[e.length - 1].isIntersecting; updateSticky(); }).observe($('#start'));
     new IntersectionObserver(function (e) { heroVisible = e[e.length - 1].isIntersecting; updateSticky(); }).observe(hero);
     new IntersectionObserver(function (e) { leadVisible = e[e.length - 1].isIntersecting; updateSticky(); }).observe(lead);
