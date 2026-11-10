@@ -28,7 +28,7 @@
   var GA4_NAMES = {
     ViewContent: 'view_content', LeadFormStart: 'lead_form_start', Lead: 'generate_lead',
     InitiateCheckout: 'begin_checkout', Purchase: 'purchase', CTA_Click: 'cta_click', Demo_Play: 'demo_play', Pricing_View: 'pricing_view',
-    Studio_Open: 'studio_open', Generate_Start: 'generate_start', Video_Ready: 'video_ready', Video_Download: 'video_download', Script_Generated: 'script_generated', Contact_Submit: 'contact_submit', Chat_Open: 'chat_open', Chat_Message: 'chat_message'
+    Contact_Submit: 'contact_submit'
   };
 
   function addScript(src) {
@@ -500,7 +500,7 @@
       data.set('elapsed_ms', String(Date.now() - pageLoadedAt));
       return send(data).then(function (result) {
         if (!result || result.ok !== true || !result.order_id) throw failure(problem(result));
-        order = { id: result.order_id, token: result.token, email: value('o-email').toLowerCase(), ai: !!result.ai };
+        order = { id: result.order_id, token: result.token, email: value('o-email').toLowerCase(), ai: !!result.ai, live: !!result.live };
         if (result.lead_created) track('Lead', { content_name: 'order_form' }, { once: true, eventId: result.order_id });
       });
     }
@@ -568,6 +568,12 @@
       showCard();
     }
     function selectedPlan() { return $('#ob-plan-double').checked ? 'double' : 'single'; }
+    function paymentMessage(code) {
+      if (code === 'declined') return 'Your payment was declined. Please try again.';
+      if (code === 'pending') return 'Your payment is being reviewed. We\'ll email you once it\'s confirmed.';
+      if (code === 'not_connected') return 'Card payments aren\'t available yet. Please contact us to place your order.';
+      return 'We couldn\'t confirm your payment. Please contact us.';
+    }
     function payFailed(message) {
       busy = false;
       payButton.disabled = false;
@@ -619,7 +625,21 @@
       });
     });
 
-    /* The payment page is a test: card details stay in this page and are never sent or saved. */
+    /* PAYMENT PROVIDER (browser side).
+       While payments are off, card details stay in this page and are never sent or saved, nothing is charged, and
+       only the practice card 4242 4242 4242 4242 is accepted. Every other card is politely turned down, so no
+       customer thinks they paid.
+       Once the Google script has PAYMENTS_LIVE set to yes, payWithProvider runs instead of the practice card check.
+       Fill it in with the provider's checkout: take the payment for `amount` (USD) and resolve with the
+       provider's payment ID, or reject with an error whose code is 'declined' or 'pending'. The Google script then
+       double-checks that payment with the provider before recording the order. Also replace the card number,
+       expiry and CVC fields in templates/index.html.j2 with the provider's secure card box.
+       Card numbers must never be sent to the Google script. */
+    function payWithProvider(order, amount, billing) {
+      var notConnected = new Error('not_connected');
+      notConnected.code = 'not_connected';
+      return Promise.reject(notConnected);
+    }
     var TEST_CARD = '4242424242424242';
     var billingRules = [
       { id: 'b-name', test: function (v) { return v.length >= 2; }, msg: 'Enter the billing name.' },
@@ -636,7 +656,7 @@
       return year > now.getFullYear() || (year === now.getFullYear() && Number(m[1]) >= now.getMonth() + 1);
     }
     var cardRules = [
-      { id: 'c-number', test: function (v) { return v.replace(/\s/g, '') === TEST_CARD; }, msg: 'This is a test page. Use the test card number 4242 4242 4242 4242.' },
+      { id: 'c-number', test: function (v) { return v.replace(/\s/g, '') === TEST_CARD; }, msg: 'Card payments aren\'t available yet. Please contact us to place your order.' },
       { id: 'c-expiry', test: expiryOk, msg: 'Enter a valid expiry date, like 12/30.' },
       { id: 'c-cvc', test: function (v) { return /^\d{3,4}$/.test(v); }, msg: 'Enter the 3 or 4 digit security code.' }
     ];
@@ -653,13 +673,6 @@
       this.value = digits.length > 2 ? digits.slice(0, 2) + '/' + digits.slice(2) : digits;
     });
     $('#c-cvc').addEventListener('input', function () { this.value = this.value.replace(/\D/g, '').slice(0, 4); });
-    $('#ob-test-card').addEventListener('click', function () {
-      var next = String((new Date().getFullYear() + 2) % 100);
-      $('#c-number').value = '4242 4242 4242 4242';
-      $('#c-expiry').value = '12/' + (next.length < 2 ? '0' + next : next);
-      $('#c-cvc').value = '123';
-      cardRules.forEach(function (rule) { showError(rule, ''); });
-    });
 
     function showPayment() {
       order.plan = selectedPlan();
@@ -688,31 +701,43 @@
       if (busy || !order) return;
       payError.hidden = true;
       var firstBad = null;
-      billingRules.concat(cardRules).forEach(function (rule) {
+      billingRules.concat(order.live ? [] : cardRules).forEach(function (rule) {
         var input = document.getElementById(rule.id), ok = rule.test(input.value.trim());
         showError(rule, ok ? '' : rule.msg);
         if (!ok && !firstBad) firstBad = input;
       });
-      if (!cardRules[0].test($('#c-number').value)) $('#c-number').value = '';
+      if (!order.live && !cardRules[0].test($('#c-number').value)) $('#c-number').value = '';
       if (firstBad) { firstBad.focus(); return; }
 
       busy = true;
       payButton.disabled = true;
       payButton.textContent = 'Processing your payment…';
-      var data = orderFields('order_paid');
-      data.set('plan', order.plan);
-      data.set('billing_name', value('b-name'));
-      data.set('billing_address', value('b-address'));
-      data.set('billing_city', value('b-city'));
-      data.set('billing_region', value('b-region'));
-      data.set('billing_postal', value('b-postal'));
-      data.set('billing_country', value('b-country'));
-      send(data).then(function (result) {
-        if (!result || result.ok !== true) { payFailed(problem(result)); return; }
-        busy = false;
-        clearCard();
-        showDone();
-      }, function (err) { payFailed(offline(err)); });
+      var billing = {
+        name: value('b-name'), address: value('b-address'), city: value('b-city'),
+        region: value('b-region'), postal: value('b-postal'), country: value('b-country')
+      };
+      var paying = order.live ? payWithProvider(order, PRICES[order.plan], billing) : Promise.resolve('');
+      paying.then(function (reference) {
+        var data = orderFields('order_paid');
+        data.set('plan', order.plan);
+        data.set('billing_name', billing.name);
+        data.set('billing_address', billing.address);
+        data.set('billing_city', billing.city);
+        data.set('billing_region', billing.region);
+        data.set('billing_postal', billing.postal);
+        data.set('billing_country', billing.country);
+        if (reference) data.set('payment_reference', reference);
+        return send(data).then(function (result) {
+          if (!result || result.ok !== true) {
+            var code = result && result.error;
+            payFailed(code === 'declined' || code === 'pending' || code === 'payment' ? paymentMessage(code) : problem(result));
+            return;
+          }
+          busy = false;
+          clearCard();
+          showDone();
+        }, function (err) { payFailed(offline(err)); });
+      }, function (err) { payFailed(paymentMessage(err && err.code)); });
     });
   }
 

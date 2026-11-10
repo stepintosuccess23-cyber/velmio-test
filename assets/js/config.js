@@ -13,14 +13,6 @@ window.SITE_CONFIG = {
   // true: tracking loads only after a visitor accepts cookies.
   requireConsent: true,
 
-  // Web API key from your Firebase project. Accounts and passwords need it.
-  // Firebase designs this value to be public. It only identifies your project.
-  // Your private keys belong in the Apps Script, never in this file.
-  firebaseApiKey: "",
-
-  // Set to true after adding ANTHROPIC_API_KEY to the Apps Script.
-  chatEnabled: false,
-
   // Shown in the footer and on the Contact page when filled in.
   contactEmail: "",
   contactPhone: ""

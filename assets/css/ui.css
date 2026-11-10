@@ -1,42 +1,43 @@
-/* Velmio product UI: shared type, tokens and components for the Studio, dashboard and Contact page. */
+/* Velmio product UI: shared type, tokens and components for the Contact page. */
 @font-face { font-family: "Plus Jakarta Sans"; src: url("../fonts/plus-jakarta-sans-latin.woff2") format("woff2"); font-weight: 200 800; font-display: swap; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2190-2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 @font-face { font-family: "Plus Jakarta Sans"; src: url("../fonts/plus-jakarta-sans-latin-ext.woff2") format("woff2"); font-weight: 200 800; font-display: swap; unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
 
 .vm-ui {
   --head: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --body: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --brand: #8E78E6;
-  --brand-hover: #A08CEC;
-  --on-brand: #FFFFFF;
-  --sidebar: #151933;
-  --card: #1A1D35;
-  --soft: #242044;
-  --sm-shadow: 0 1px 2px rgba(5, 7, 20, .4);
-  --md-shadow: 0 10px 30px rgba(5, 7, 20, .4);
+  --brand: #E2B857;
+  --brand-hover: #F0CD78;
+  --on-brand: #15120C;
+  --sidebar: #0F0F10;
+  --card: #161513;
+  --soft: #221E16;
+  --sm-shadow: 0 1px 2px rgba(0, 0, 0, .4);
+  --md-shadow: 0 10px 30px rgba(0, 0, 0, .4);
   --r: 14px;
   font-size: 1rem;
 }
 :root[data-theme="light"] .vm-ui {
-  --bg: #FAF9FD;
+  --bg: #FAF7F0;
   --bg-2: #FFFFFF;
-  --violet: #E9E4FA;
-  --purple: #7861D8;
-  --lavender: #5B42C8;
-  --ivory: #17152B;
-  --muted: #66617B;
-  --glass: #F4F2FA;
-  --glass-line: #E7E4EF;
-  --fg-rgb: 23, 21, 43;
+  --violet: #EFE5CF;
+  --purple: #A57B1F;
+  --lavender: #8A6416;
+  --ivory: #17140E;
+  --muted: #5C5446;
+  --glass: #F4EEE2;
+  --glass-line: #E6DDCB;
+  --fg-rgb: 23, 20, 14;
   --bg-rgb: 255, 255, 255;
-  --accent-rgb: 91, 66, 200;
-  --shadow: 0 18px 50px rgba(40, 30, 90, .14);
-  --brand: #5B42C8;
-  --brand-hover: #4C35AE;
-  --sidebar: #F4F2FA;
+  --accent-rgb: 165, 123, 31;
+  --shadow: 0 18px 50px rgba(90, 66, 18, .14);
+  --brand: #8A6416;
+  --brand-hover: #6E4F10;
+  --on-brand: #FFFFFF;
+  --sidebar: #F4EEE2;
   --card: #FFFFFF;
-  --soft: #E9E4FA;
-  --sm-shadow: 0 1px 2px rgba(40, 30, 90, .06);
-  --md-shadow: 0 8px 24px rgba(40, 30, 90, .08);
+  --soft: #EFE5CF;
+  --sm-shadow: 0 1px 2px rgba(90, 66, 18, .06);
+  --md-shadow: 0 8px 24px rgba(90, 66, 18, .08);
 }
 
 .ic { flex: none; width: 18px; height: 18px; }
@@ -71,7 +72,7 @@
 .acct-id strong { display: block; overflow: hidden; color: var(--ivory); font-size: .9rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .acct-id span[data-account-email] { display: block; overflow: hidden; color: var(--muted); font-size: .8rem; text-overflow: ellipsis; white-space: nowrap; }
 .ui-dialog { width: min(420px, calc(100vw - 32px)); padding: 20px; border: 1px solid var(--glass-line); border-radius: 16px; background: var(--bg-2); color: var(--ivory); box-shadow: var(--shadow); }
-.ui-dialog::backdrop { background: rgba(10, 8, 30, .45); }
+.ui-dialog::backdrop { background: rgba(0, 0, 0, .45); }
 .ui-dialog p { margin-bottom: 12px; font-weight: 500; }
 .ui-dialog input { width: 100%; height: 46px; padding: 0 12px; border: 1px solid var(--glass-line); border-radius: 10px; background: var(--card); color: var(--ivory); font: 400 16px var(--body); }
 .ui-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
