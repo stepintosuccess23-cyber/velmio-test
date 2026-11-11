@@ -140,13 +140,13 @@
     </div>
 
     <div class="vsl-stage">
-      <img class="vsl-backdrop" src="assets/images/sacara-6-reel.webp" alt="" aria-hidden="true" decoding="async">
+      <img class="vsl-backdrop" src="assets/images/betterai-curiosity.webp" alt="" aria-hidden="true" decoding="async">
       <div class="vsl-player">
         <span class="tag tag-float">Sample video</span>
         
 <div class="player" data-player="hero" data-autoplay="true" data-slide-ms="2400" role="group" aria-label="promo video preview">
   
-  <video src="assets/videos/sacara-demo.mp4" poster="assets/images/sacara-6-reel.webp" muted loop playsinline preload="metadata" width="540" height="960"></video>
+  <video src="assets/videos/betterai-curiosity.mp4" poster="assets/images/betterai-curiosity.webp" muted loop playsinline preload="metadata" width="540" height="960"></video>
   
   <div class="player-ui">
     <button class="player-toggle" type="button" data-player-toggle aria-label="Play promo video preview">
@@ -299,6 +299,32 @@
 
         <h3>Music &amp; Artists</h3>
         <p class="sample-desc">A song release teaser that tells a short story and sends fans to stream it.</p>
+      </article>
+      
+      <article class="sample">
+        <span class="tag tag-float">Sample video</span>
+        
+<div class="player" data-player="sample-6" data-autoplay="false" data-slide-ms="2200" role="group" aria-label="Perfume &amp; Beauty example">
+  
+  <video src="assets/videos/sacara-demo.mp4" poster="assets/images/sacara-6-reel.webp" muted loop playsinline preload="metadata" width="540" height="960"></video>
+  
+  <div class="player-ui">
+    <button class="player-toggle" type="button" data-player-toggle aria-label="Play Perfume &amp; Beauty example">
+      <svg class="i-play" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M5 3.5v13a.8.8 0 0 0 1.2.7l11-6.5a.8.8 0 0 0 0-1.4l-11-6.5A.8.8 0 0 0 5 3.5z" fill="currentColor"/></svg>
+      <svg class="i-pause" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><rect x="4" y="3" width="4.4" height="14" rx="1.2" fill="currentColor"/><rect x="11.6" y="3" width="4.4" height="14" rx="1.2" fill="currentColor"/></svg>
+    </button>
+    <div class="player-track" aria-hidden="true"><i data-player-fill></i></div>
+    <span class="player-time" data-player-time aria-hidden="true">0:00</span>
+    
+    <button class="player-toggle player-mute" type="button" data-player-mute aria-label="Turn sound on" aria-pressed="false">
+      <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M3 8v4h3l4 3.5v-11L6 8z" fill="currentColor"/><path d="M13 7.5c1.2 1.4 1.2 3.6 0 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </button>
+    
+  </div>
+</div>
+
+        <h3>Perfume &amp; Beauty</h3>
+        <p class="sample-desc">A perfume launch ad that shows the bottle up close and the feeling of the scent.</p>
       </article>
       
     </div>
@@ -625,8 +651,21 @@
         <p class="ob-help" id="ob-need-details" hidden>We couldn't read your website, so our team will review your details personally.</p>
         <fieldset class="plan-pick" data-price-swap>
           <legend>Choose Your Package</legend>
-          <label><input type="radio" name="ob-plan" id="ob-plan-single" value="single" checked><span><strong>1 Video</strong><small>$120 one payment</small></span></label>
-          <label><input type="radio" name="ob-plan" id="ob-plan-double" value="double"><span><strong>2 Videos</strong><small>$199 one payment</small></span></label>
+          <div class="pick-grid">
+            <label class="pick">
+              <input type="radio" name="ob-plan" id="ob-plan-single" value="single" checked>
+              <span class="pick-top"><strong>1 Video</strong><span class="pick-dot" aria-hidden="true"></span></span>
+              <span class="pick-price"><s data-offer>$890</s> <b>$120</b></span>
+              <small>one payment</small>
+            </label>
+            <label class="pick pick-best">
+              <input type="radio" name="ob-plan" id="ob-plan-double" value="double">
+              <em class="pick-badge">Best value</em>
+              <span class="pick-top"><strong>2 Videos</strong><span class="pick-dot" aria-hidden="true"></span></span>
+              <span class="pick-price"><s data-offer>$1,500</s> <b>$199</b></span>
+              <small>one payment</small>
+            </label>
+          </div>
         </fieldset>
 
         <section class="ob-summary" aria-label="Order summary" data-price-swap>
